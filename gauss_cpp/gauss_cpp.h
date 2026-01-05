@@ -9,4 +9,4 @@
 #endif
 
 extern "C" LIBRARY_API int sq(int num);
-extern "C" LIBRARY_API void gauss(BYTE* data, int depth, int height, int stride);
+extern "C" LIBRARY_API void gauss(BYTE* data, int depth, int height,int width, int stride, int kernel_size, float sigma);

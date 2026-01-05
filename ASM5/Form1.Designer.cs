@@ -50,10 +50,8 @@
             this.InputKernel = new System.Windows.Forms.NumericUpDown();
             this.InputSigma = new System.Windows.Forms.NumericUpDown();
             this.InputThreads = new System.Windows.Forms.NumericUpDown();
-            this.radioMirror = new System.Windows.Forms.RadioButton();
-            this.radioWrap = new System.Windows.Forms.RadioButton();
-            this.radioExtend = new System.Windows.Forms.RadioButton();
             this.groupBox1 = new System.Windows.Forms.GroupBox();
+            this.progressBar = new System.Windows.Forms.ProgressBar();
             this.tableLayoutPanel1.SuspendLayout();
             this.groupBox3.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.pictureOutput)).BeginInit();
@@ -169,9 +167,7 @@
             this.tableLayoutPanel2.Controls.Add(this.InputKernel, 1, 1);
             this.tableLayoutPanel2.Controls.Add(this.InputSigma, 1, 2);
             this.tableLayoutPanel2.Controls.Add(this.InputThreads, 1, 3);
-            this.tableLayoutPanel2.Controls.Add(this.radioMirror, 2, 4);
-            this.tableLayoutPanel2.Controls.Add(this.radioWrap, 1, 4);
-            this.tableLayoutPanel2.Controls.Add(this.radioExtend, 0, 4);
+            this.tableLayoutPanel2.Controls.Add(this.progressBar, 0, 4);
             this.tableLayoutPanel2.Dock = System.Windows.Forms.DockStyle.Fill;
             this.tableLayoutPanel2.Location = new System.Drawing.Point(3, 16);
             this.tableLayoutPanel2.Name = "tableLayoutPanel2";
@@ -297,8 +293,9 @@
             this.label6.Name = "label6";
             this.label6.Size = new System.Drawing.Size(124, 31);
             this.label6.TabIndex = 15;
-            this.label6.Text = "Kernel must be an odd sized square\r\n";
+            this.label6.Text = "Kernel must be an odd sized square.";
             this.label6.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
+            this.label6.Click += new System.EventHandler(this.label6_Click);
             // 
             // label7
             // 
@@ -321,6 +318,11 @@
             0,
             0});
             this.InputKernel.Location = new System.Drawing.Point(132, 34);
+            this.InputKernel.Maximum = new decimal(new int[] {
+            1000,
+            0,
+            0,
+            0});
             this.InputKernel.Minimum = new decimal(new int[] {
             1,
             0,
@@ -338,13 +340,14 @@
             // 
             // InputSigma
             // 
+            this.InputSigma.DecimalPlaces = 2;
             this.InputSigma.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.InputSigma.Location = new System.Drawing.Point(132, 65);
-            this.InputSigma.Minimum = new decimal(new int[] {
+            this.InputSigma.Increment = new decimal(new int[] {
             1,
             0,
             0,
-            0});
+            131072});
+            this.InputSigma.Location = new System.Drawing.Point(132, 65);
             this.InputSigma.Name = "InputSigma";
             this.InputSigma.Size = new System.Drawing.Size(123, 20);
             this.InputSigma.TabIndex = 19;
@@ -372,42 +375,6 @@
             0,
             0});
             // 
-            // radioMirror
-            // 
-            this.radioMirror.AutoSize = true;
-            this.radioMirror.Checked = true;
-            this.radioMirror.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.radioMirror.Location = new System.Drawing.Point(261, 127);
-            this.radioMirror.Name = "radioMirror";
-            this.radioMirror.Size = new System.Drawing.Size(124, 25);
-            this.radioMirror.TabIndex = 21;
-            this.radioMirror.TabStop = true;
-            this.radioMirror.Text = "Mirror edges";
-            this.radioMirror.UseVisualStyleBackColor = true;
-            // 
-            // radioWrap
-            // 
-            this.radioWrap.AutoSize = true;
-            this.radioWrap.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.radioWrap.Location = new System.Drawing.Point(132, 127);
-            this.radioWrap.Name = "radioWrap";
-            this.radioWrap.Size = new System.Drawing.Size(123, 25);
-            this.radioWrap.TabIndex = 22;
-            this.radioWrap.Text = "Wrap edges";
-            this.radioWrap.UseVisualStyleBackColor = true;
-            // 
-            // radioExtend
-            // 
-            this.radioExtend.AutoSize = true;
-            this.radioExtend.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.radioExtend.Location = new System.Drawing.Point(3, 127);
-            this.radioExtend.Name = "radioExtend";
-            this.radioExtend.Size = new System.Drawing.Size(123, 25);
-            this.radioExtend.TabIndex = 23;
-            this.radioExtend.Text = "Extend edges";
-            this.radioExtend.UseVisualStyleBackColor = true;
-            this.radioExtend.CheckedChanged += new System.EventHandler(this.radioButton3_CheckedChanged_1);
-            // 
             // groupBox1
             // 
             this.groupBox1.Controls.Add(this.tableLayoutPanel1);
@@ -417,6 +384,16 @@
             this.groupBox1.Size = new System.Drawing.Size(806, 450);
             this.groupBox1.TabIndex = 3;
             this.groupBox1.TabStop = false;
+            // 
+            // progressBar
+            // 
+            this.tableLayoutPanel2.SetColumnSpan(this.progressBar, 3);
+            this.progressBar.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.progressBar.Location = new System.Drawing.Point(3, 127);
+            this.progressBar.Name = "progressBar";
+            this.progressBar.Size = new System.Drawing.Size(382, 25);
+            this.progressBar.Step = 100;
+            this.progressBar.TabIndex = 21;
             // 
             // Form1
             // 
@@ -468,9 +445,7 @@
         private System.Windows.Forms.NumericUpDown InputKernel;
         private System.Windows.Forms.NumericUpDown InputSigma;
         private System.Windows.Forms.NumericUpDown InputThreads;
-        private System.Windows.Forms.RadioButton radioMirror;
-        private System.Windows.Forms.RadioButton radioWrap;
-        private System.Windows.Forms.RadioButton radioExtend;
+        private System.Windows.Forms.ProgressBar progressBar;
     }
 }
 
