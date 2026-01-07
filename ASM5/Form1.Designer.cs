@@ -50,8 +50,8 @@
             this.InputKernel = new System.Windows.Forms.NumericUpDown();
             this.InputSigma = new System.Windows.Forms.NumericUpDown();
             this.InputThreads = new System.Windows.Forms.NumericUpDown();
-            this.groupBox1 = new System.Windows.Forms.GroupBox();
             this.progressBar = new System.Windows.Forms.ProgressBar();
+            this.groupBox1 = new System.Windows.Forms.GroupBox();
             this.tableLayoutPanel1.SuspendLayout();
             this.groupBox3.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.pictureOutput)).BeginInit();
@@ -223,7 +223,7 @@
             this.label3.Name = "label3";
             this.label3.Size = new System.Drawing.Size(123, 31);
             this.label3.TabIndex = 6;
-            this.label3.Text = "Kernel size";
+            this.label3.Text = "Kernel radius";
             this.label3.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
             this.label3.Click += new System.EventHandler(this.label3_Click);
             // 
@@ -293,7 +293,7 @@
             this.label6.Name = "label6";
             this.label6.Size = new System.Drawing.Size(124, 31);
             this.label6.TabIndex = 15;
-            this.label6.Text = "Kernel must be an odd sized square.";
+            this.label6.Text = "No real accuracy gain after 3*sigma";
             this.label6.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
             this.label6.Click += new System.EventHandler(this.label6_Click);
             // 
@@ -312,11 +312,6 @@
             // InputKernel
             // 
             this.InputKernel.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.InputKernel.Increment = new decimal(new int[] {
-            2,
-            0,
-            0,
-            0});
             this.InputKernel.Location = new System.Drawing.Point(132, 34);
             this.InputKernel.Maximum = new decimal(new int[] {
             1000,
@@ -375,16 +370,6 @@
             0,
             0});
             // 
-            // groupBox1
-            // 
-            this.groupBox1.Controls.Add(this.tableLayoutPanel1);
-            this.groupBox1.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.groupBox1.Location = new System.Drawing.Point(0, 0);
-            this.groupBox1.Name = "groupBox1";
-            this.groupBox1.Size = new System.Drawing.Size(806, 450);
-            this.groupBox1.TabIndex = 3;
-            this.groupBox1.TabStop = false;
-            // 
             // progressBar
             // 
             this.tableLayoutPanel2.SetColumnSpan(this.progressBar, 3);
@@ -394,6 +379,16 @@
             this.progressBar.Size = new System.Drawing.Size(382, 25);
             this.progressBar.Step = 100;
             this.progressBar.TabIndex = 21;
+            // 
+            // groupBox1
+            // 
+            this.groupBox1.Controls.Add(this.tableLayoutPanel1);
+            this.groupBox1.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.groupBox1.Location = new System.Drawing.Point(0, 0);
+            this.groupBox1.Name = "groupBox1";
+            this.groupBox1.Size = new System.Drawing.Size(806, 450);
+            this.groupBox1.TabIndex = 3;
+            this.groupBox1.TabStop = false;
             // 
             // Form1
             // 
