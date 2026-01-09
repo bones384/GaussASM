@@ -1,2 +1,2 @@
 LIBRARY asm
-EXPORTS MyProc1
+EXPORTS gauss_horizontal

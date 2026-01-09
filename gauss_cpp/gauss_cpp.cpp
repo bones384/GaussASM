@@ -1,11 +1,16 @@
 #include "pch.h"
 #include "gauss_cpp.h"
-#include "math.h" #include <cmath> #include <thread> #include <cassert>
+#include "math.h" 
+#include <cmath> 
+#include <thread>
+#include <cassert>
 #include <cstdint>
 
 
-void gauss_horizontal(uint8_t* data, uint8_t* temp, uint8_t depth, int height, int width, int stride, uint16_t* kernel, int kernel_size, int start_row, int end_row)
+void gauss_horizontal(uint8_t* data, uint8_t* temp, int height, int width, int stride, uint16_t* kernel, int kernel_size, int start_row, int end_row)
 {
+	uint8_t depth = 4;
+
 	int rowBytes = width * depth;
 	for (int i = start_row; i < end_row; i++)
 	{
@@ -40,8 +45,10 @@ void gauss_horizontal(uint8_t* data, uint8_t* temp, uint8_t depth, int height, i
 	}
 }
 
-void gauss_vertical(uint8_t* data, uint8_t* temp, uint8_t depth, int height, int width, int stride, uint16_t* kernel, int kernel_size, int start_row, int end_row)
+void gauss_vertical(uint8_t* data, uint8_t* temp, int height, int width, int stride, uint16_t* kernel, int kernel_size, int start_row, int end_row)
 {
+	uint8_t depth = 4;
+
 	int rowBytes = width * depth;
 	for (int i = start_row; i < end_row; i++)
 	{
@@ -49,8 +56,9 @@ void gauss_vertical(uint8_t* data, uint8_t* temp, uint8_t depth, int height, int
 		for (int j = 0; j < rowBytes; j += 4)
 		{
 			int pixel_offset = row_offset + j;
-			// Copy alpha channel
-			data[pixel_offset + 3] = temp[pixel_offset + 3];
+			// alpha = 1 
+			//TODO: change
+			data[pixel_offset + 3] = 255;
 			// Process RGB channels
 			for (int k = 0; k < 3; k++)
 			{
@@ -76,10 +84,11 @@ void gauss_vertical(uint8_t* data, uint8_t* temp, uint8_t depth, int height, int
 	}
 }
 
-void gauss(uint8_t* data, uint8_t* temp, uint8_t depth, int height, int width, int stride, uint16_t* kernel, int kernel_size, int start_row, int end_row, int isHorizontal)
+void gauss(uint8_t* data, uint8_t* temp, int height, int width, int stride, uint16_t* kernel, int kernel_size, int start_row, int end_row, int isHorizontal)
 {
-	int rowBytes = width * depth;
+	uint8_t depth = 4;
 
+	int rowBytes = width * depth;
 	//1st pass
 	// for rows
 	if (isHorizontal)

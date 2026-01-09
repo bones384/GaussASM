@@ -119,13 +119,14 @@ namespace ASM5
             return (float)Math.Exp(-(x * x) / (2 * sigma * sigma));
         }
         [DllImport(@"C:\Users\mkowa\source\repos\ASM5\x64\Debug\gauss_cpp.dll")]
-        static extern unsafe void gauss(byte* data, byte* temp, byte depth, int height, int width, int stride, ushort* kernel, int kernel_size, int start_row, int end_row, int isHorizontal);
+        static extern unsafe void gauss(byte* data, byte* temp,  int height, int width, int stride, ushort* kernel, int kernel_size, int start_row, int end_row, int isHorizontal);
+
+        // [DllImport(@"C:\Users\mkowa\source\repos\ASM5\x64\Debug\gauss_cpp.dll")]
+        [DllImport(@"C:\Users\mkowa\source\repos\ASM5\x64\Debug\asm.dll")]
+        static extern unsafe void gauss_horizontal(byte* data, byte* temp,  int height, int width, int stride, ushort* kernel, int kernel_size, int start_row, int end_row);
 
         [DllImport(@"C:\Users\mkowa\source\repos\ASM5\x64\Debug\gauss_cpp.dll")]
-        static extern unsafe void gauss_horizontal(byte* data, byte* temp, byte depth, int height, int width, int stride, ushort* kernel, int kernel_size, int start_row, int end_row);
-
-        [DllImport(@"C:\Users\mkowa\source\repos\ASM5\x64\Debug\gauss_cpp.dll")]
-        static extern unsafe void gauss_vertical(byte* data, byte* temp, byte depth, int height, int width, int stride, ushort* kernel, int kernel_size, int start_row, int end_row);
+        static extern unsafe void gauss_vertical(byte* data, byte* temp, int height, int width, int stride, ushort* kernel, int kernel_size, int start_row, int end_row);
 
         private void buttonCpp_Click(object sender, EventArgs e)
         {
@@ -176,7 +177,7 @@ namespace ASM5
                             int end_row = (i == thread_count - 1) ? InputBitmap.Height : start_row + slice_height;
                             threads[i] = new Thread(() =>
                             {
-                                gauss_horizontal(p_image, p_temp, 4, InputBitmap.Height, InputBitmap.Width, data.Stride, p_kernel, kernel_size, start_row, end_row);
+                                gauss_horizontal(p_image, p_temp, InputBitmap.Height, InputBitmap.Width, data.Stride, p_kernel, kernel_size, start_row, end_row);
                             });
                             threads[i].Start();
 
@@ -201,7 +202,7 @@ namespace ASM5
                             threads[i] = new Thread(() =>
                             {
 
-                                gauss_vertical(p_image, p_temp, 4, InputBitmap.Height, InputBitmap.Width, data.Stride, p_kernel, kernel_size, start_row, end_row);
+                                gauss_vertical(p_image, p_temp, InputBitmap.Height, InputBitmap.Width, data.Stride, p_kernel, kernel_size, start_row, end_row);
                             });
                             threads[i].Start();
                         }
@@ -237,6 +238,16 @@ namespace ASM5
         }
 
         private void label6_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        private void label9_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        private void label8_Click(object sender, EventArgs e)
         {
 
         }
