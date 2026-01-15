@@ -327,6 +327,7 @@
             this.buttonAsm.TabIndex = 10;
             this.buttonAsm.Text = "Blur (ASM)";
             this.buttonAsm.UseVisualStyleBackColor = true;
+            this.buttonAsm.Click += new System.EventHandler(this.buttonAsm_Click);
             // 
             // buttonBulk
             // 

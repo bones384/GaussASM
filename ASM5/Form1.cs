@@ -123,8 +123,11 @@ namespace ASM5
 
         // [DllImport(@"C:\Users\mkowa\source\repos\ASM5\x64\Debug\gauss_cpp.dll")]
         [DllImport(@"C:\Users\mkowa\source\repos\ASM5\x64\Debug\asm.dll")]
-        static extern unsafe void gauss_horizontal(byte* data, byte* temp,  int height, int width, int stride, ushort* kernel, int kernel_size, int start_row, int end_row);
-
+        static extern unsafe void gauss_horizontal(byte* data, byte* temp, int width, int stride, ushort* kernel, int kernel_size, int start_row, int end_row);
+       
+        [DllImport(@"C:\Users\mkowa\source\repos\ASM5\x64\Debug\gauss_cpp.dll")]
+        static extern unsafe void gauss_horizontalcpp(byte* data, byte* temp, int width, int stride, ushort* kernel, int kernel_size, int start_row, int end_row);
+        
         [DllImport(@"C:\Users\mkowa\source\repos\ASM5\x64\Debug\gauss_cpp.dll")]
         static extern unsafe void gauss_vertical(byte* data, byte* temp, int height, int width, int stride, ushort* kernel, int kernel_size, int start_row, int end_row);
 
@@ -177,7 +180,7 @@ namespace ASM5
                             int end_row = (i == thread_count - 1) ? InputBitmap.Height : start_row + slice_height;
                             threads[i] = new Thread(() =>
                             {
-                                gauss_horizontal(p_image, p_temp, InputBitmap.Height, InputBitmap.Width, data.Stride, p_kernel, kernel_size, start_row, end_row);
+                                gauss_horizontalcpp(p_image, p_temp, InputBitmap.Width, data.Stride, p_kernel, kernel_size, start_row, end_row);
                             });
                             threads[i].Start();
 
@@ -201,8 +204,7 @@ namespace ASM5
                             int end_row = (i == thread_count - 1) ? InputBitmap.Height : start_row + slice_height;
                             threads[i] = new Thread(() =>
                             {
-
-                                gauss_vertical(p_image, p_temp, InputBitmap.Height, InputBitmap.Width, data.Stride, p_kernel, kernel_size, start_row, end_row);
+                                 gauss_vertical(p_image, p_temp, InputBitmap.Height, InputBitmap.Width, data.Stride, p_kernel, kernel_size, start_row, end_row);
                             });
                             threads[i].Start();
                         }
@@ -222,7 +224,7 @@ namespace ASM5
             Bitmap output = new Bitmap(InputBitmap.Width, InputBitmap.Height, PixelFormat.Format32bppArgb);
 
             data = output.LockBits(rect, ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
-            Marshal.Copy(image, 0, data.Scan0, image.Length);
+            Marshal.Copy(temp, 0, data.Scan0, image.Length); // <-- CHANGE BACK TO IMAGE!!
             output.UnlockBits(data);
             if (pictureOutput.Image != null)
             {
@@ -250,6 +252,113 @@ namespace ASM5
         private void label8_Click(object sender, EventArgs e)
         {
 
+        }
+
+        private void buttonAsm_Click(object sender, EventArgs e)
+        {
+            Cursor.Current = Cursors.WaitCursor;
+            if (InputBitmap == null)
+            {
+                MessageBox.Show("Please load an image first.");
+                return;
+            }
+            Stopwatch sw = new Stopwatch();
+            sw.Start();
+
+            Rectangle rect = new Rectangle(0, 0, InputBitmap.Width, InputBitmap.Height);
+
+
+            BitmapData data = InputBitmap.LockBits(rect, ImageLockMode.ReadWrite, PixelFormat.Format32bppArgb);
+            byte[] image = new byte[data.Height * data.Stride];
+            Marshal.Copy(data.Scan0, image, 0, image.Length);
+            InputBitmap.UnlockBits(data);
+            progressBar.Value = 0;
+
+            int kernel_size = (int)InputKernel.Value;
+            ushort[] kernel = generate_gaussian_kernel((float)InputSigma.Value, kernel_size);
+            int thread_count = (int)InputThreads.Value;
+            int slice_height = InputBitmap.Height / thread_count;
+            Thread[] threads = new Thread[thread_count];
+            progressBar.Maximum = 2 * thread_count + 1;
+
+            byte[] temp = new byte[InputBitmap.Height * data.Stride];
+
+
+            unsafe
+            {
+                ushort* p_kernel;
+                byte* p_temp, p_image;
+                fixed (ushort* fixed_kernel = kernel)
+                fixed (byte* fixed_image = image)
+
+                {
+                    fixed (byte* fixed_temp = temp)
+                    {
+                        p_temp = fixed_temp;
+                        p_kernel = fixed_kernel;
+                        p_image = fixed_image;
+                        for (int i = 0; i < thread_count; i++)
+                        {
+                            int start_row = i * slice_height;
+                            int end_row = (i == thread_count - 1) ? InputBitmap.Height : start_row + slice_height;
+                            threads[i] = new Thread(() =>
+                            {
+                                gauss_horizontal(p_image, p_temp, InputBitmap.Width, data.Stride, p_kernel, kernel_size, start_row, end_row);
+                            });
+                            threads[i].Start();
+
+                        }
+
+
+                        for (int i = 0; i < thread_count; i++)
+                        {
+                            threads[i].Join();
+                            progressBar.Value += 2;
+                            progressBar.Value -= 1;
+
+
+
+
+                        }
+
+                        for (int i = 0; i < thread_count; i++)
+                        {
+                            int start_row = i * slice_height;
+                            int end_row = (i == thread_count - 1) ? InputBitmap.Height : start_row + slice_height;
+                            threads[i] = new Thread(() =>
+                            {
+                                gauss_vertical(p_image, p_temp, InputBitmap.Height, InputBitmap.Width, data.Stride, p_kernel, kernel_size, start_row, end_row);
+                            });
+                            threads[i].Start();
+                        }
+
+                        for (int i = 0; i < thread_count; i++)
+                        {
+                            threads[i].Join();
+                            progressBar.Value += 2;
+                            progressBar.Value -= 1;
+                        }
+
+                        progressBar.Maximum = 2 * thread_count;
+                    }
+                }
+            }
+
+            Bitmap output = new Bitmap(InputBitmap.Width, InputBitmap.Height, PixelFormat.Format32bppArgb);
+
+            data = output.LockBits(rect, ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
+            Marshal.Copy(temp, 0, data.Scan0, image.Length); // <-- CHANGE BACK TO IMAGE!!
+            output.UnlockBits(data);
+            if (pictureOutput.Image != null)
+            {
+                var old = pictureOutput.Image;
+                pictureOutput.Image = null;
+                old.Dispose();
+            }
+            pictureOutput.Image = output;
+            sw.Stop();
+            Console.WriteLine("Elapsed={0}", sw.Elapsed);
+            Cursor.Current = Cursors.Arrow;
         }
     }
 }

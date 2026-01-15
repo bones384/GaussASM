@@ -7,7 +7,7 @@
 #include <cstdint>
 
 
-void gauss_horizontal(uint8_t* data, uint8_t* temp, int height, int width, int stride, uint16_t* kernel, int kernel_size, int start_row, int end_row)
+void gauss_horizontalcpp(uint8_t* data, uint8_t* temp, int width, int stride, uint16_t* kernel, int kernel_size, int start_row, int end_row)
 {
 	uint8_t depth = 4;
 
