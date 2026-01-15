@@ -267,7 +267,11 @@ left:
     vmovdqu temp_bytes, YMMWORD PTR [rsi + rax*4]
 
     vmovdqa ymm10, YMMWORD PTR idx
-    vmovd xmm11, kernel_delta
+    mov rax, kernel_delta
+    add rax, byte_idx
+    add rax, 8
+    sub rax, width_bytes
+    vmovd xmm11, rax
     vpbroadcastd ymm11, xmm11
 
     vpaddd ymm10, ymm10, ymm11      ; i + d
