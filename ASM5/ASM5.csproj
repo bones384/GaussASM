@@ -103,5 +103,30 @@
   <ItemGroup>
     <None Include="App.config" />
   </ItemGroup>
+  <ItemGroup>
+    <Content Include="test_photos\10.png" />
+    <Content Include="test_photos\11.png" />
+    <Content Include="test_photos\12.png" />
+    <Content Include="test_photos\13.png" />
+    <Content Include="test_photos\14.png" />
+    <Content Include="test_photos\15.png" />
+    <Content Include="test_photos\16.png" />
+    <Content Include="test_photos\4.png" />
+    <Content Include="test_photos\5.png" />
+    <Content Include="test_photos\8.png" />
+    <Content Include="test_photos\9.png" />
+    <Content Include="test_photos\a22.png" />
+    <Content Include="test_photos\aaaaa.png" />
+    <Content Include="test_photos\c.png" />
+    <Content Include="test_photos\f.png" />
+    <Content Include="test_photos\fycb.png" />
+    <Content Include="test_photos\paste.png" />
+    <Content Include="test_photos\red.png" />
+    <Content Include="test_photos\s.png" />
+    <Content Include="test_photos\Screenshot 2026-01-05 121131.png" />
+    <Content Include="test_photos\striped.png" />
+    <Content Include="test_photos\Untitled.png" />
+    <Content Include="test_photos\w.png" />
+  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

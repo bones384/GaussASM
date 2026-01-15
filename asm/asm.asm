@@ -282,7 +282,7 @@ left:
     vpminsd ymm10, ymm10, ymm11 
     vpermd temp_bytes, ymm10, temp_bytes  ; clamp to 0
     ;
-    jl right
+    jmp right
 right_ok:
     sub rax, 8
     vmovdqu temp_bytes, YMMWORD PTR [rsi + rax*4]
