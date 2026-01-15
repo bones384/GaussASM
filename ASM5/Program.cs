@@ -9,6 +9,7 @@ namespace ASM5
     C# program, can load a bitmap image and alter it with the C++ DLL's function.
         January 5th 2026 - C++ blur implemented, needs multithreading.
         January 7th 2026 - Multithreading implemented.
+        January 16th 2026 - Finally implemented horizontal blur in assembly
      */
 
     static class Program
