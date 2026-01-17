@@ -16,56 +16,56 @@ namespace ASM5
             InitializeComponent();
         }
 
-        private void groupBox2_Enter(object sender, EventArgs e)
+        static class NativeLoader
+
         {
+            unsafe delegate void GaussHorizontalDelegate(byte* input, byte* output, int width, int stride, ushort* kernel, int kernel_size, int start_row, int end_row);
+            unsafe delegate void GaussVerticalDelegate(byte* input, byte* output, int height, int width, int stride, ushort* kernel, int kernel_size, int start_row, int end_row);
 
+            [DllImport("kernel32")]
+            static extern IntPtr LoadLibrary(string lpFileName);
+
+            [DllImport("kernel32")]
+            static extern IntPtr GetProcAddress(IntPtr hModule, string procName);
+
+            static IntPtr _dll;
+            static GaussHorizontalDelegate _gauss_horizontal;
+            static GaussVerticalDelegate _gauss_vertical;
+
+            public static void LoadLib(int lib)
+            {
+                string path;
+
+                if (lib == 1)
+                    path = "./asm.dll";
+                else
+                    path = "./gauss_cpp.dll";
+
+                _dll = LoadLibrary(path);
+                if (_dll == IntPtr.Zero)
+                    throw new Exception("Failed to load DLL");
+
+                IntPtr fn = GetProcAddress(_dll, "gauss_horizontal");
+                if (fn == IntPtr.Zero)
+                    throw new Exception("Function not found");
+
+                _gauss_horizontal = Marshal.GetDelegateForFunctionPointer<GaussHorizontalDelegate>(fn);
+
+                 fn = GetProcAddress(_dll, "gauss_vertical");
+                if (fn == IntPtr.Zero)
+                    throw new Exception("Function not found");
+                _gauss_vertical = Marshal.GetDelegateForFunctionPointer<GaussVerticalDelegate>(fn);
+            }
+
+            public static unsafe void gauss_horizontal(byte* input, byte* output, int width, int stride, ushort* kernel, int kernel_size, int start_row, int end_row)
+            {
+                _gauss_horizontal(input, output, width, stride, kernel, kernel_size, start_row, end_row);
+            }
+            public static unsafe void gauss_vertical(byte* input, byte* output, int height, int width, int stride, ushort* kernel, int kernel_size, int start_row, int end_row)
+            {
+                _gauss_vertical(input, output, height, width, stride, kernel, kernel_size, start_row, end_row);
+            }
         }
-
-        private void pictureBox1_Click(object sender, EventArgs e)
-        {
-
-        }
-
-        private void label4_Click(object sender, EventArgs e)
-        {
-
-        }
-
-        private void label5_Click(object sender, EventArgs e)
-        {
-
-        }
-
-        private void tableLayoutPanel2_Paint(object sender, PaintEventArgs e)
-        {
-
-        }
-
-        private void label3_Click(object sender, EventArgs e)
-        {
-
-        }
-
-        private void radioButton1_CheckedChanged(object sender, EventArgs e)
-        {
-
-        }
-
-        private void radioButton3_CheckedChanged(object sender, EventArgs e)
-        {
-
-        }
-
-        private void radioButton3_CheckedChanged_1(object sender, EventArgs e)
-        {
-
-        }
-
-        private void label7_Click(object sender, EventArgs e)
-        {
-
-        }
-
         private void button1_Click(object sender, EventArgs e)
         {
             OpenFileDialog ofd = new OpenFileDialog();
@@ -118,22 +118,21 @@ namespace ASM5
         {
             return (float)Math.Exp(-(x * x) / (2 * sigma * sigma));
         }
-        [DllImport(@"C:\Users\mkowa\source\repos\ASM5\x64\Debug\gauss_cpp.dll")]
-        static extern unsafe void gauss(byte* data, byte* temp,  int height, int width, int stride, ushort* kernel, int kernel_size, int start_row, int end_row, int isHorizontal);
-
-        // [DllImport(@"C:\Users\mkowa\source\repos\ASM5\x64\Debug\gauss_cpp.dll")]
-        [DllImport(@"C:\Users\mkowa\source\repos\ASM5\x64\Debug\asm.dll")]
-        static extern unsafe void gauss_horizontal(byte* data, byte* temp, int width, int stride, ushort* kernel, int kernel_size, int start_row, int end_row);
-       
-        [DllImport(@"C:\Users\mkowa\source\repos\ASM5\x64\Debug\gauss_cpp.dll")]
-        static extern unsafe void gauss_horizontalcpp(byte* data, byte* temp, int width, int stride, ushort* kernel, int kernel_size, int start_row, int end_row);
         
-        [DllImport(@"C:\Users\mkowa\source\repos\ASM5\x64\Debug\gauss_cpp.dll")]
-        static extern unsafe void gauss_vertical(byte* data, byte* temp, int height, int width, int stride, ushort* kernel, int kernel_size, int start_row, int end_row);
+            // [DllImport(@"./asm.dll")]
+            //static extern unsafe void gauss_horizontal(byte* input, byte* output, int width, int stride, ushort* kernel, int kernel_size, int start_row, int end_row);
+
+            //[DllImport(@"./gauss_cpp.dll")]
+           // static extern unsafe void gauss_horizontalcpp(byte* input, byte* output, int width, int stride, ushort* kernel, int kernel_size, int start_row, int end_row);
+
+        //[DllImport(@"C:\Users\mkowa\source\repos\ASM5\x64\Debug\gauss_cpp.dll")]
+        //[DllImport(@"./gauss_cpp.dll")]
+
+        //static extern unsafe void gauss_vertical(byte* input, byte* output, int height, int width, int stride, ushort* kernel, int kernel_size, int start_row, int end_row);
 
         private void buttonCpp_Click(object sender, EventArgs e)
         {
-            Cursor.Current = Cursors.WaitCursor;
+            NativeLoader.LoadLib(0);
             if (InputBitmap == null)
             {
                 MessageBox.Show("Please load an image first.");
@@ -141,122 +140,17 @@ namespace ASM5
             }
             Stopwatch sw = new Stopwatch();
             sw.Start();
-
-            Rectangle rect = new Rectangle(0, 0, InputBitmap.Width, InputBitmap.Height);
-
-
-            BitmapData data = InputBitmap.LockBits(rect, ImageLockMode.ReadWrite, PixelFormat.Format32bppArgb);
-            byte[] image = new byte[data.Height * data.Stride];
-            Marshal.Copy(data.Scan0, image, 0, image.Length);
-            InputBitmap.UnlockBits(data);
-            progressBar.Value = 0;
-
-            int kernel_size = (int)InputKernel.Value;
-            ushort[] kernel = generate_gaussian_kernel((float)InputSigma.Value, kernel_size);
-            int thread_count = (int)InputThreads.Value;
-            int slice_height = InputBitmap.Height / thread_count;
-            Thread[] threads = new Thread[thread_count];
-            progressBar.Maximum = 2 * thread_count + 1;
-
-            byte[] temp = new byte[InputBitmap.Height * data.Stride];
-
-
-            unsafe
-            {
-                ushort* p_kernel;
-                byte* p_temp, p_image;
-                fixed (ushort* fixed_kernel = kernel)
-                fixed (byte* fixed_image = image)
-
-                {
-                    fixed (byte* fixed_temp = temp)
-                    {
-                        p_temp = fixed_temp;
-                        p_kernel = fixed_kernel;
-                        p_image = fixed_image;
-                        for (int i = 0; i < thread_count; i++)
-                        {
-                            int start_row = i * slice_height;
-                            int end_row = (i == thread_count - 1) ? InputBitmap.Height : start_row + slice_height;
-                            threads[i] = new Thread(() =>
-                            {
-                                gauss_horizontalcpp(p_image, p_temp, InputBitmap.Width, data.Stride, p_kernel, kernel_size, start_row, end_row);
-                            });
-                            threads[i].Start();
-
-                        }
-
-
-                        for (int i = 0; i < thread_count; i++)
-                        {
-                            threads[i].Join();
-                            progressBar.Value += 2;
-                            progressBar.Value -= 1;
-
-
-
-
-                        }
-
-                        for (int i = 0; i < thread_count; i++)
-                        {
-                            int start_row = i * slice_height;
-                            int end_row = (i == thread_count - 1) ? InputBitmap.Height : start_row + slice_height;
-                            threads[i] = new Thread(() =>
-                            {
-                                 gauss_vertical(p_image, p_temp, InputBitmap.Height, InputBitmap.Width, data.Stride, p_kernel, kernel_size, start_row, end_row);
-                            });
-                            threads[i].Start();
-                        }
-
-                        for (int i = 0; i < thread_count; i++)
-                        {
-                            threads[i].Join();
-                            progressBar.Value += 2;
-                            progressBar.Value -= 1;
-                        }
-
-                        progressBar.Maximum = 2 * thread_count;
-                    }
-                }
-            }
-
-            Bitmap output = new Bitmap(InputBitmap.Width, InputBitmap.Height, PixelFormat.Format32bppArgb);
-
-            data = output.LockBits(rect, ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
-            Marshal.Copy(temp, 0, data.Scan0, image.Length); // <-- CHANGE BACK TO IMAGE!!
-            output.UnlockBits(data);
-            if (pictureOutput.Image != null)
-            {
-                var old = pictureOutput.Image;
-                pictureOutput.Image = null;
-                old.Dispose();
-            }
-            pictureOutput.Image = output;
+            blur();
             sw.Stop();
-            Console.WriteLine("Elapsed={0}", sw.Elapsed);
-            Cursor.Current = Cursors.Arrow;
+            Console.WriteLine("CPP: Elapsed={0}", sw.Elapsed);
 
         }
 
-        private void label6_Click(object sender, EventArgs e)
-        {
-
-        }
-
-        private void label9_Click(object sender, EventArgs e)
-        {
-
-        }
-
-        private void label8_Click(object sender, EventArgs e)
-        {
-
-        }
+        
 
         private void buttonAsm_Click(object sender, EventArgs e)
         {
-            Cursor.Current = Cursors.WaitCursor;
+            NativeLoader.LoadLib(1);
             if (InputBitmap == null)
             {
                 MessageBox.Show("Please load an image first.");
@@ -264,6 +158,14 @@ namespace ASM5
             }
             Stopwatch sw = new Stopwatch();
             sw.Start();
+            blur();
+            sw.Stop();
+            Console.WriteLine("ASM: Elapsed={0}", sw.Elapsed);
+        }
+
+        void blur()
+        {
+            Cursor.Current = Cursors.WaitCursor;
 
             Rectangle rect = new Rectangle(0, 0, InputBitmap.Width, InputBitmap.Height);
 
@@ -303,7 +205,7 @@ namespace ASM5
                             int end_row = (i == thread_count - 1) ? InputBitmap.Height : start_row + slice_height;
                             threads[i] = new Thread(() =>
                             {
-                                gauss_horizontal(p_image, p_temp, InputBitmap.Width, data.Stride, p_kernel, kernel_size, start_row, end_row);
+                                NativeLoader.gauss_horizontal(p_image, p_temp, InputBitmap.Width, data.Stride, p_kernel, kernel_size, start_row, end_row);
                             });
                             threads[i].Start();
 
@@ -327,7 +229,7 @@ namespace ASM5
                             int end_row = (i == thread_count - 1) ? InputBitmap.Height : start_row + slice_height;
                             threads[i] = new Thread(() =>
                             {
-                                gauss_vertical(p_image, p_temp, InputBitmap.Height, InputBitmap.Width, data.Stride, p_kernel, kernel_size, start_row, end_row);
+                                NativeLoader.gauss_vertical(p_temp, p_image, InputBitmap.Height, InputBitmap.Width, data.Stride, p_kernel, kernel_size, start_row, end_row);
                             });
                             threads[i].Start();
                         }
@@ -347,7 +249,7 @@ namespace ASM5
             Bitmap output = new Bitmap(InputBitmap.Width, InputBitmap.Height, PixelFormat.Format32bppArgb);
 
             data = output.LockBits(rect, ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
-            Marshal.Copy(temp, 0, data.Scan0, image.Length); // <-- CHANGE BACK TO IMAGE!!
+            Marshal.Copy(image, 0, data.Scan0, image.Length); 
             output.UnlockBits(data);
             if (pictureOutput.Image != null)
             {
@@ -356,8 +258,6 @@ namespace ASM5
                 old.Dispose();
             }
             pictureOutput.Image = output;
-            sw.Stop();
-            Console.WriteLine("Elapsed={0}", sw.Elapsed);
             Cursor.Current = Cursors.Arrow;
         }
     }

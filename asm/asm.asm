@@ -3,117 +3,178 @@ alpha_mask_data BYTE \
   255,255,255,0,  255,255,255,0, \
   255,255,255,0,  255,255,255,0, \
   255,255,255,0,  255,255,255,0, \
-  255,255,255,0,  255,255,255,0  ; 32 bytes total
+  255,255,255,0,  255,255,255,0     
 
-  byte_expand_lo LABEL BYTE
-db 0,0,0,0, 4,4,4,4, 8,8,8,8, 12,12,12,12
-  byte_expand_hi LABEL BYTE
-  db 4,4,4,4, 5,5,5,5, 6,6,6,6, 7,7,7,7
-
-byte_offsets LABEL BYTE
-db 0,1,2,3, 0,1,2,3, 0,1,2,3, 0,1,2,3
-
-lane_index_4 LABEL BYTE
-dd 0,1,2,3
-lane_base_hi LABEL BYTE
-dd 4,4,4,4
-lane_max_4 LABEL BYTE
-dd 3,3,3,3
-idx LABEL BYTE
+idx LABEL DWORD
 dd 0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
 .code
+
+    ; Parameters
+    p_input	 equ rcx ; *data
+    p_output	 equ rdx ; *temp
+    width_pixels equ r8 ; width in pixels
+    stride equ r9 ; stride in bytes
+   
+    p_kernel equ r10 ; *kernel
+    kernel_radius equ r11 ; kernel size (radius)
+    start_row equ r12 ; start_row
+    end_row equ r13 ; end_row
+
+    ; YMM registers used
+    ; Common registers
+    orig_bytes equ ymm0 ; original pixel values loaded from p_input
+
+    kernel_value equ ymm5 ; broadcasted kernel value
+
+    temp_bytes equ ymm6 ; temporary storage - often loaded neighboring pixel data or intermediate results
+    x_temp_bytes equ xmm6 ; lower 128 bits of temp_bytes
+
+    zero equ ymm7 ; [0, 0, 0, ... 0]
+    x_zero equ xmm7 ; lower 128 bits of zero
+
+    ; Widened pixel components (from bytes to words)
+    low_bytes equ ymm1
+    x_low_bytes equ xmm1
+    high_bytes equ ymm2
+    x_high_bytes equ xmm2
+
+    ; Accumulators
+    low_accum_low equ ymm3
+    high_accum_low equ ymm4
+    low_accum_high equ ymm8
+    high_accum_high equ ymm9
+
+    ; Further widened pixel components (from words to dwords)
+    low_bytes_low equ ymm10
+    x_low_bytes_low equ xmm10
+    low_bytes_high equ ymm1
+    x_low_bytes_high equ xmm1
+    high_bytes_low equ ymm11
+    x_high_bytes_low equ xmm11
+    high_bytes_high equ ymm2
+    x_high_bytes_high equ xmm2
+
+    ; Procedure variables
+   
+    pixel_idx equ rbx ; current pixel index in row (in pixels)
+    kernel_delta equ r15 ; current kernel index delta from center
+
+    ; Tail processing variables
+
+    ; Accumulators for tail processing
+
+    ; Red component accumulator
+    R_acc equ r15
+    R_accb equ r15b
+    R_accd equ r15d
+    ; Green component accumulator
+    G_acc equ r14
+    G_accb equ r14b
+    G_accd equ r14d
+    ; Blue component accumulator
+    B_acc equ r9
+    B_accb equ r9b
+    B_accd equ r9d
+    
+    kernel_index equ r8 ; same as kernel_delta but for tail processing
+    remaining_pixels equ r13 ; total pixels in row left to process in tail
+    pixel_idx_tail equ r12 ; current pixel index in tail processing
+    dest_pixel_ea equ r8 ; effective address for storing pixel in tail processing
+
+    ; -----------------------------------------
+    ; Macro to process 8 pixels - expand, multiply by kernel, accumulate
+    ; src_reg - source register containing 8 pixels (32 bytes)
+    ; INTERNAL USE ONLY
+    ; -----------------------------------------
+PROCESS_PIXELS MACRO src_reg
+
+    vextracti128 x_low_bytes, src_reg, 0       ; pixels 0–3 -> x_low_bytes
+    vextracti128 x_high_bytes, src_reg, 1       ; pixels 4–7 -> x_high_bytes
+
+    vpmovzxbw low_bytes, x_low_bytes             ; widen bytes to words
+    vpmovzxbw high_bytes, x_high_bytes
+
+    vextracti128 x_low_bytes_low, low_bytes, 0 ; pixels 0,1 -> x_low_bytes_low
+    vextracti128 x_low_bytes_high, low_bytes, 1 ; pixels 2,3 -> x_low_bytes_high
+    vextracti128 x_high_bytes_low, high_bytes, 0 ; pixels 4,5 -> x_high_bytes_low
+    vextracti128 x_high_bytes_high, high_bytes, 1 ; pixels 6,7 -> x_high_bytes_high
+
+    vpmovzxwd low_bytes_low, x_low_bytes_low ; widen words to dwords
+    vpmovzxwd low_bytes_high, x_low_bytes_high
+
+    vpmovzxwd high_bytes_low, x_high_bytes_low
+    vpmovzxwd high_bytes_high, x_high_bytes_high
+
+    vpmulld low_bytes_low, low_bytes_low, kernel_value ; multiply by kernel value
+    vpmulld low_bytes_high, low_bytes_high, kernel_value
+
+    vpmulld high_bytes_low, high_bytes_low, kernel_value
+    vpmulld high_bytes_high, high_bytes_high, kernel_value
+
+    vpaddd low_accum_low, low_accum_low, low_bytes_low ; accumulate
+    vpaddd low_accum_high, low_accum_high, low_bytes_high
+
+    vpaddd high_accum_low, high_accum_low, high_bytes_low
+    vpaddd high_accum_high, high_accum_high, high_bytes_high
+ENDM
+; -----------------------------------------
+; Function: gauss_horizontal
+; Author: ----
+; Created: January 9, 2026
+; Modified: January 17, 2026 
+; Description: Applies a horizontal Gaussian blur to image data.
+; Parameters:
+;   RCX - Pointer to the image data 
+;   RDX - Pointer to temporary buffer
+;   R8 - Width of the image in pixels
+;   R9 - Stride (number of bytes per row)
+;   Additional parameters passed on stack:
+;  Kernel - Pointer to the Gaussian kernel
+;   Kernel Size - Radius of the Gaussian kernel 
+;   Start Row  - Starting row index 
+;  End Row  - Ending row index 
+; Clobbers: rax, rcx, rdx, r8, r9  
+; Saves and restores: rbp, rbx, r12-r15, xmm6-xmm12
+;; -----------------------------------------
 gauss_horizontal proc
 
-    ; RCX = data (uint8_t*)
-    ; RDX = temp (uint8_t*)
-    ; R8D = height
-    ; R9D = width
-
-      push rbx
+    ; ---- Save callee-saved GPRs ----
+    push rbx
     push rbp
-    push rsi
-    push rdi
     push r12
     push r13
     push r14
     push r15
+    ; Saved 6 registers - rsp decreases by 48 bytes
 
-    p_data	 equ rcx 
+    ; Load additional parameters from stack
+    mov r10, QWORD PTR [rsp+40+48] ;p_kernel
+    mov r11d,  DWORD PTR [rsp+48+48] ; kernel_radius
+    mov r12d, DWORD PTR [rsp+56+48] ; start_row
+    mov r13d, DWORD PTR [rsp+64+48] ; end_row
 
-    p_temp	 equ rdx
-    ;height	 equ r8d
-    ;width_bytes equ r9
-    width_bytes equ r8
-    stride equ r9
-
-    ;xor r10, r10 ; will be used for stride
-    ;xor r11, r11 ; will be used for kernel pointer
-    ;xor r12, r12 ; will be used for kernel size
-    ;xor r13, r13 ; will be used for start_row
-    ;xor r14, r14 ; will be used for end_row
+    sub rsp, 112		 ; space for XMM6 to XMM12 (7 × 16 bytes)
 
 
-    mov r10, QWORD PTR [rsp+40+64] ; stride/// ;r10d ,kernel dqddd
-    mov r11d,  DWORD PTR [rsp+48+64] ; kernel (uint16_t*) // k size
-    mov r12d, DWORD PTR [rsp+56+64] ; kernel_size// srow
-    mov r13d, DWORD PTR [rsp+64+64] ; start_row //endrow
-    ;mov r14d, DWORD PTR [rsp+72+64] ; end_row //nothing
+    ; ---- Save non-volatile XMM registers ----
+    movdqu xmmword ptr [rsp + 0], xmm6
+    movdqu xmmword ptr [rsp + 16], xmm7
+    movdqu xmmword ptr [rsp + 32], xmm8
+    movdqu xmmword ptr [rsp + 48], xmm9
+    movdqu xmmword ptr [rsp + 64], xmm10
+    movdqu xmmword ptr [rsp + 80], xmm11
+    movdqu xmmword ptr [rsp + 96], xmm12
 
-    ;stride equ r10
-    p_kernel equ r10 ;r11
-    kernel_size equ r11
-    start_row equ r12
-    end_row equ r13
-
-    orig_bytes equ ymm0
-    zero equ ymm7
-    x_zero equ xmm7
-    low_bytes equ ymm1
-    x_low_bytes equ xmm1
-    low_bytes_high equ ymm1
-    x_low_bytes_high equ xmm1
-    high_bytes equ ymm2
-    x_high_bytes equ xmm2
-    high_bytes_high equ ymm2
-    x_high_bytes_high equ xmm2
-    low_accum_low equ ymm3
-    high_accum_low equ ymm4
-    kernel_value equ ymm5
-    temp_bytes equ ymm6
-    x_temp_bytes equ xmm6
-    low_accum_high equ ymm8
-    high_accum_high equ ymm9
-
-    low_bytes_low equ ymm10
-    x_low_bytes_low equ xmm10
-    high_bytes_low equ ymm11
-    x_high_bytes_low equ xmm11
-    temp equ ymm12
-    x_temp equ xmm12
-    kernel_delta equ r15
-
-     sub rsp, 64          ; space for YMM6 + YMM7 (2 × 32 bytes)
-     sub rsp, 64          ; space for YMM8 + YMM9 (2 × 32 bytes)
-     sub rsp, 64          ; space for YMM10 + YMM11 (2 × 32 bytes)
-     sub rsp, 32
-
-    ; ---- Save YMM registers ----
-    vmovdqu ymmword ptr [rsp +  0], ymm6
-    vmovdqu ymmword ptr [rsp + 32], ymm7
-    vmovdqu ymmword ptr [rsp + 32], ymm8
-    vmovdqu ymmword ptr [rsp + 32], ymm9
-        vmovdqu ymmword ptr [rsp + 32], ymm10
-    vmovdqu ymmword ptr [rsp + 32], ymm11
-    vmovdqu ymmword ptr [rsp + 32], ymm12
-
-
+    ; Initialize zero register
     vpxor zero, zero, zero ; ymm7 = [0, 0, 0, ... 0]
+
+    ; For each row from start_row to end_row...
 rowloop:
-    cmp start_row, end_row
+    cmp start_row, end_row ; finish procedure if start_row >= end_row
     jge done
 
-    mov rsi, p_data ;*data -> rsi 
-    mov rdi, p_temp ;*temp -> rdi
+    mov rsi, p_input ;*data -> rsi 
+    mov rdi, p_output ;*temp -> rdi
     mov rax, start_row ; rax -> start_row
     imul rax, stride ; rax -> start_row * stride (offset of current row from *data)
 
@@ -121,219 +182,170 @@ rowloop:
     add rsi, rax 
     add rdi, rax
 
-    byte_idx equ rbx
+    xor pixel_idx, pixel_idx ; pixel_idx = 0 (start of row)
 
-    xor byte_idx, byte_idx ; x = 0,  x: current byte index
-
+    ; For each pixel in the row...
 pixelloop:
-    cmp byte_idx, width_bytes ;jmp to nextrow if x > width
-    jge nextrow
-    ;not past row, check if we can process 8 pixels at once
-    mov rax, width_bytes
-    sub rax, byte_idx
+    cmp pixel_idx, width_pixels ; If pixel_idx >= width_pixels, done with row entirely
+    jge nextrow 
+    ; Not finished row yet, check if enough pixels remain for full 8-pixel processing
+    mov rax, width_pixels
+    sub rax, pixel_idx
     cmp rax, 8 
-    jl tail
+    jl tail ; if less than 8 pixels remain, go to tail processing
 
-
-
-    ; load center pixels for 8 pixels
-    vmovdqu orig_bytes, YMMWORD PTR [rsi + byte_idx*4] ;load 256bits from memory (8 pixels * 4 components(bytes) = 32bytes = 256 bits)
+    ; load center pixel data for 8 pixels
+    vmovdqu orig_bytes, YMMWORD PTR [rsi + pixel_idx*4] ;load 256bits from memory (8 pixels * 4 components(bytes) = 32bytes = 256 bits)
     ; ymm0 = [A7, R7, G7, B7, ... A0, R0, G0, B0]
     ; Format32bppArgb 
 
-    ;; TEST
-    ;;    vmovdqu YMMWORD PTR [rdi + rbx*4], ymm0
-    ;;    inc ebx
-    ;;    jmp pixelloop
-    ;;
-
-    ;extend each component value from 1 byte to 2 bytes (FF - > 00FF)
-
-    
-
-   ; vpunpcklbw low_bytes, orig_bytes, zero   ; interweave low 16 bytes of each 32 byte half of both registers (pixels 0,1 and 4,5)
-    ;vpunpckhbw high_bytes, orig_bytes, zero   ; same but high bytes - pixels 2,3 and 6,7
-
-    vextracti128 x_low_bytes, orig_bytes, 0       ; pixels 0–3
-    vextracti128 x_high_bytes, orig_bytes, 1       ; pixels 4–7
-
-    vpmovzxbw low_bytes, x_low_bytes             ; widen
-    vpmovzxbw high_bytes, x_high_bytes
-
+    ; Zero accumulators
     vpxor low_accum_low, low_accum_low, low_accum_low
     vpxor high_accum_low, high_accum_low, high_accum_low
     vpxor low_accum_high, low_accum_high, low_accum_high
     vpxor high_accum_high, high_accum_high, high_accum_high
     ;ymm3=ymm4= [0,0,0,...0]
+
     xor kernel_delta, kernel_delta ; kernel_delta = 0 
     
-    movzx eax, WORD PTR [p_kernel + kernel_delta*2] 
-    vmovd xmm5, eax
-    vpbroadcastd kernel_value, xmm5
+    ; load kernel[0], broadcast
+    movzx eax, WORD PTR [p_kernel] ; eax = kernel[0] 
+    vmovd xmm5, eax ; move to xmm5
+    vpbroadcastd kernel_value, xmm5 ; broadcast to kernel_value as dwords
 
-
-    vextracti128 x_low_bytes_low, low_bytes, 0
-    vextracti128 x_low_bytes_high, low_bytes, 1
-
-    vextracti128 x_high_bytes_low, high_bytes, 0
-    vextracti128 x_high_bytes_high, high_bytes, 1
-
-    vpmovzxwd low_bytes_low, x_low_bytes_low
-    vpmovzxwd low_bytes_high, x_low_bytes_high
-
-    vpmovzxwd high_bytes_low, x_high_bytes_low
-    vpmovzxwd high_bytes_high, x_high_bytes_high
-
-    vpmulld low_bytes_low, low_bytes_low, kernel_value
-    vpmulld low_bytes_high, low_bytes_high, kernel_value
-
-    vpmulld high_bytes_low, high_bytes_low, kernel_value
-    vpmulld high_bytes_high, high_bytes_high, kernel_value
-
-    vpaddd low_accum_low, low_accum_low, low_bytes_low
-    vpaddd low_accum_high, low_accum_high, low_bytes_high
-
-    vpaddd high_accum_low, high_accum_low, high_bytes_low
-    vpaddd high_accum_high, high_accum_high, high_bytes_high
-
+    ; multiply center pixels by kernel[0] and accumulate
+    PROCESS_PIXELS orig_bytes
+  
     inc kernel_delta;
+
+    ; For each kernel index from 1 to kernel_radius...
 kernelloop:
-    cmp kernel_delta, kernel_size
+
+    ; Check if we've processed the entire kernel
+    cmp kernel_delta, kernel_radius
     jge kerneldone
-  ; broadcast kernel[i]
+
+  ; broadcast kernel[i] to kernel_value as dwords
     movzx eax, WORD PTR [p_kernel + kernel_delta*2] 
     vmovd xmm5, eax
     vpbroadcastd kernel_value, xmm5
 
-    mov rax, byte_idx
+    ; Load and process left neighbor pixels offset by kernel_delta
+leftstart:
+    ; Check if we need to clamp (left neighbour of first pixel is past left edge)
+    mov rax, pixel_idx
     sub rax, kernel_delta
-    js leftclamp
-    jmp leftok
+    js leftclamp ; if pixel_idx - kernel_delta < 0, clamp to 0, shift as needed
+    jmp leftok ; if pixel_idx - kernel_delta >= 0, no clamp needed
+
+    ; Need to load first 8 pixels of row and shift as needed
 leftclamp:
-    vmovdqu temp_bytes, YMMWORD PTR [rsi]
 
-    vmovdqa ymm10, YMMWORD PTR idx
+    ; ymm10 and ymm11 are unused at this point - use for calculations    
+
+    ; load first 8 pixels of row
+    vmovdqu temp_bytes, YMMWORD PTR [rsi] ; temp_bytes = [ p8, p7, p6, p5, p4, p3, p2, p1] 8 pixels, 4 bytes each, so a pixel is a dword
+
+    ; calculate shift amount
+    ; load idx - every dword is its own index 
+    vmovdqa ymm10, YMMWORD PTR idx ; ymm10 = [15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0]
+
+    ; broadcast kernel_delta to all dwords in ymm11
     vmovd xmm11, kernel_delta
-    vpbroadcastd ymm11, xmm11
+    vpbroadcastd ymm11, xmm11 ; ymm11 = [d,d,d,d,d,d,d,d,d,d,d,d,d,d,d,d]
 
-    vpsubd ymm10, ymm10, ymm11      ; i - d
-    vpmaxsd ymm10, ymm10, zero 
-    vpermd temp_bytes, ymm10, temp_bytes  ; clamp to 0
+    ; subtract kernel_delta from each index, clamp to 0
+    vpsubd ymm10, ymm10, ymm11      
+    vpmaxsd ymm10, ymm10, zero ; ymm10 = [max(0, i - d), ...]
+    
+    ; For example, if kernel_delta=3, ymm10 = [12,11,10,9,8,7,6,5,4,3,2,1,0,0,0,0]
+    ; 1st, 2nd, 3rd pixels left neighbour is the 1st pixel, as their true left neighbour is out of bounds
+
+    ; permute temp_bytes to get correct pixels
+    ; an entire pixel's worth of data is 4 bytes (a dword), we use ymm10 to rearrange the first 8 pixels' data
+    ; copying the first pixels value to those out-of-bounds left neighbours, and the real neighbours for the rest
+    vpermd temp_bytes, ymm10, temp_bytes  
+
     jmp left
-leftok:
 
+    ; No clamping needed, just load 8 pixels starting from  (pixel_idx - kernel_delta)
+leftok:
     vmovdqu temp_bytes, YMMWORD PTR [rsi + rax*4]
 
 left:
+    ; Process the loaded left neighbor pixels
+    PROCESS_PIXELS temp_bytes
+  
+    ; Load and process right neighbor pixels offset by kernel_delta
+  rightstart:  
 
-    vextracti128 x_low_bytes, temp_bytes, 0       ; pixels 0–3
-    vextracti128 x_high_bytes, temp_bytes, 1       ; pixels 4–7
+    ; Check if we need to clamp (right neighbour of last pixel is past right edge)
+    mov rax, pixel_idx ; rax = pixel_idx
+    add rax, kernel_delta ; rax = pixel_idx + kernel_delta
+    add rax, 8 ; rax = pixel_idx + kernel_delta + 8 (8 pixels being processed)
+    cmp rax, width_pixels ; if pixel_idx + kernel_delta + 8 >= width_pixels, clamp needed (right neighbour of last pixel is past right edge)
+    jle right_ok ; if pixel_idx + kernel_delta + 8 < width_pixels, no clamp needed
 
-    vpmovzxbw low_bytes, x_low_bytes             ; widen
-    vpmovzxbw high_bytes, x_high_bytes
-
-    vextracti128 x_low_bytes_low, low_bytes, 0
-    vextracti128 x_low_bytes_high, low_bytes, 1
-
-    vextracti128 x_high_bytes_low, high_bytes, 0
-    vextracti128 x_high_bytes_high, high_bytes, 1
-
-
-    vpmovzxwd low_bytes_low, x_low_bytes_low
-    vpmovzxwd low_bytes_high, x_low_bytes_high
-
-    vpmovzxwd high_bytes_low, x_high_bytes_low
-    vpmovzxwd high_bytes_high, x_high_bytes_high
-
-    vpmulld low_bytes_low, low_bytes_low, kernel_value
-    vpmulld low_bytes_high, low_bytes_high, kernel_value
-
-    vpmulld high_bytes_low, high_bytes_low, kernel_value
-    vpmulld high_bytes_high, high_bytes_high, kernel_value
-
-    vpaddd low_accum_low, low_accum_low, low_bytes_low
-    vpaddd low_accum_high, low_accum_high, low_bytes_high
-
-    vpaddd high_accum_low, high_accum_low, high_bytes_low
-    vpaddd high_accum_high, high_accum_high, high_bytes_high
-  right_start:  
-    mov rax, byte_idx
-    add rax, kernel_delta
-    add rax, 8
-    cmp rax, width_bytes
-    jle right_ok
-    mov rax, width_bytes
+    ; Need to load last 8 pixels of row and shift as needed
+    mov rax, width_pixels
     sub rax, 8
     vmovdqu temp_bytes, YMMWORD PTR [rsi + rax*4]
 
+rightclamp:
+
+    ; Load idx - every dword is its own index
     vmovdqa ymm10, YMMWORD PTR idx
+
+    ; Calculate shift amount 
     mov rax, kernel_delta
-    add rax, byte_idx
+    add rax, pixel_idx
     add rax, 8
-    sub rax, width_bytes
+    sub rax, width_pixels
+    
+    ; Broadcast shift amount to ymm11
     vmovd xmm11, rax
     vpbroadcastd ymm11, xmm11
 
-    vpaddd ymm10, ymm10, ymm11      ; i + d
+    ; Add shift amount to each index
+    vpaddd ymm10, ymm10, ymm11      
 
-    ;xor rax,rax
-    ;add rax, width_bytes
-    ;dec rax
+    ; Broadcast max index (7) to ymm11
     mov rax, 7
     vmovd xmm11, rax
     vpbroadcastd ymm11, xmm11
 
-    vpminsd ymm10, ymm10, ymm11 
-    vpermd temp_bytes, ymm10, temp_bytes  ; clamp to 0
-    ;
+    ; Clamp to 7
+    vpminsd ymm10, ymm10, ymm11
+
+    ; Permute to get correct pixels
+    vpermd temp_bytes, ymm10, temp_bytes  
+    
     jmp right
+
+    ; No clamping needed, just load 8 pixels starting from (pixel_idx + kernel_delta)
 right_ok:
-    sub rax, 8
-    vmovdqu temp_bytes, YMMWORD PTR [rsi + rax*4]
+    sub rax, 8 ; adjust back to pixel_idx + kernel_delta
+    vmovdqu temp_bytes, YMMWORD PTR [rsi + rax*4] ; load 8 pixels
+
     right:
-    ;vpunpcklbw low_bytes, temp_bytes, zero
-    ;vpunpckhbw high_bytes, temp_bytes, zero
-
-   vextracti128 x_low_bytes, temp_bytes, 0       ; pixels 0–3
-    vextracti128 x_high_bytes, temp_bytes, 1       ; pixels 4–7
-
-    vpmovzxbw low_bytes, x_low_bytes             ; widen
-    vpmovzxbw high_bytes, x_high_bytes
-
-    vextracti128 x_low_bytes_low, low_bytes, 0
-    vextracti128 x_low_bytes_high, low_bytes, 1
-
-    vextracti128 x_high_bytes_low, high_bytes, 0
-    vextracti128 x_high_bytes_high, high_bytes, 1
-
-    vpmovzxwd low_bytes_low, x_low_bytes_low
-    vpmovzxwd low_bytes_high, x_low_bytes_high
-
-    vpmovzxwd high_bytes_low, x_high_bytes_low
-    vpmovzxwd high_bytes_high, x_high_bytes_high
-
-    vpmulld low_bytes_low, low_bytes_low, kernel_value
-    vpmulld low_bytes_high, low_bytes_high, kernel_value
-
-    vpmulld high_bytes_low, high_bytes_low, kernel_value
-    vpmulld high_bytes_high, high_bytes_high, kernel_value
-
-    vpaddd low_accum_low, low_accum_low, low_bytes_low
-    vpaddd low_accum_high, low_accum_high, low_bytes_high
-
-    vpaddd high_accum_low, high_accum_low, high_bytes_low
-    vpaddd high_accum_high, high_accum_high, high_bytes_high
+    ; Process the loaded right neighbor pixels
+    PROCESS_PIXELS temp_bytes
 
     inc kernel_delta
     jmp kernelloop
 
+    ; All kernel values processed
 kerneldone:
-    ; normalize Q14 fixed point
+    ; Now normalize accumulators by shifting right by 14
+    ; (divide by 16384 - result is summed multiplication result of each byte as a byte if as if kernel_values were 0.0-1.0)
     vpsrad low_accum_low, low_accum_low, 14
     vpsrad low_accum_high, low_accum_high, 14
     vpsrad high_accum_low, high_accum_low, 14
     vpsrad high_accum_high, high_accum_high, 14
 
+    ; Rearrange accumulators to prepare for packing back to bytes in correct order
+
+    ; I could just use vperm2i128 directly into the final positions, but i don't want to change labels and risk mistakes
     vmovaps temp_bytes, low_accum_high
     vmovaps low_accum_high, high_accum_low
     vmovaps high_accum_low, temp_bytes
@@ -349,18 +361,23 @@ kerneldone:
     vpackusdw low_bytes, low_accum_low, low_accum_high   ; combines low_accum_lo + low_accum_hi
     vpackusdw high_bytes, high_accum_low, high_accum_high ; combines high_accum_lo + high_accum_hi
 
-    vpackuswb temp_bytes, low_bytes, high_bytes    
-;    vpermd temp_bytes, temp_bytes, 00111001b
-    ymm_alpha_mask equ ymm5
+    vpackuswb temp_bytes, low_bytes, high_bytes    ; combines low_bytes + high_bytes
+    ; temp_bytes now has the blurred pixel data, but alpha is wrong (should be untouched)
+    ; blend in original alpha values from orig_bytes
+
+    ymm_alpha_mask equ ymm5 ; ymm5 = [0,255,255,255... , 0,255,255,255] mask to blend alpha from original pixels
     vmovdqa ymm_alpha_mask, YMMWORD PTR [alpha_mask_data]
 
-    ; store 8 pixels
+    ; Select alpha from orig_bytes, RGB from temp_bytes
     vpblendvb temp_bytes,orig_bytes, temp_bytes, ymm_alpha_mask
-    vmovdqu YMMWORD PTR [rdi + byte_idx*4], temp_bytes
+    ; Store resulting 8 pixels
+    vmovdqu YMMWORD PTR [rdi + pixel_idx*4], temp_bytes
 
-    add byte_idx, 8
+    ; Finish processing 8 pixels
+    add pixel_idx, 8
     jmp pixelloop
 
+    ; Process remaining pixels in the row one at a time
 tail:
     
 ; Save registers we will use
@@ -372,51 +389,43 @@ push r12
 push r13
 push r14
 
-byte_idx_tail equ r12
-mov r12, rbx          ; r12 = byte_idx (pixel start offset)
-remaining_pixels equ r13
-mov r13, rax          ; r13 = remaining_pixels
-add r13, byte_idx_tail ; r13=end byte idx
+
+mov pixel_idx_tail, rbx          ; r12 = pixel_idx (pixel start offset)
+mov remaining_pixels, rax          ; r13 = remaining_pixels
+add remaining_pixels, pixel_idx_tail ; r13=end byte idx
+
+; For each remaining pixel...
 tail_pixel_loop:
-    ; byte_idx_tail = byte offset for current pixel (in pixels, multiply by 4 for bytes)
+    ; pixel_idx_tail = byte offset for current pixel (in pixels, multiply by 4 for bytes)
    
+    ; Zero registers that color components will be loaded into
     xor rax, rax
     xor rbx, rbx
     xor rcx, rcx
     xor rdx, rdx
-    ; Load pixel components ;NOTE: These could be in the wrong order
-    mov al, byte ptr [rsi + byte_idx_tail*4 + 3]   ; A
 
-    mov bl, byte ptr [rsi + byte_idx_tail*4 + 2]   ; R
+    ; Load pixel components into low 8 bits of rbx,rcx,rdx
 
-    mov cl, byte ptr [rsi + byte_idx_tail*4 + 1]   ; G
+    mov bl, byte ptr [rsi + pixel_idx_tail*4 + 2]   ; R
 
-    mov dl, byte ptr [rsi + byte_idx_tail*4 + 0]   ; B
+    mov cl, byte ptr [rsi + pixel_idx_tail*4 + 1]   ; G
 
-        ; dest_pixel_ea = &dest_pixel
+    mov dl, byte ptr [rsi + pixel_idx_tail*4 + 0]   ; B
 
-    ; Initialize accumulator in r15/r14/r10 (we can reuse these)
+    ; Initialize accumulator in r15/r14/r10 (we can reuse these - will be recalculated at the start of next rowloop anyway)
 
-    R_acc equ r15
-    R_accb equ r15b
-    R_accd equ r15d
-    G_acc equ r14
-    G_accb equ r14b
-    G_accd equ r14d
-    B_acc equ r9
-    B_accb equ r9b
-    B_accd equ r9d
+    ;clear accumulators
+    xor R_acc, R_acc
+    xor G_acc, G_acc
+    xor B_acc, B_acc
 
-    xor R_acc, R_acc;r                   clear upper bits (for 32-bit multiplies) 
-    xor G_acc, G_acc;g
-    xor B_acc, B_acc;b
-    ; r8 = kernel index
-    kernel_index equ r8
+    ; process center pixel
+    ; reset kernel_index
     xor kernel_index, kernel_index
 
-            ; Load kernel value
-            movzx eax, WORD PTR [p_kernel + kernel_index*2]  ; 16-bit kernel
-             ; multiply R/G/B of center pixel
+    ; Load kernel[0]
+    movzx eax, WORD PTR [p_kernel]  ; kernel fits in 16 bits (2^14 = 16384 max)
+             ; multiply R/G/B of center pixel 
         imul ebx, eax
         imul ecx, eax
         imul edx, eax
@@ -425,35 +434,41 @@ tail_pixel_loop:
         add G_accd, ecx       ; G_acc
         add B_accd, edx       ; B_acc
         inc kernel_index
+
+        ; process remaining kernel values
     kernel_loop_scalar:
-        cmp kernel_index, kernel_size
+        ; check if done
+        cmp kernel_index, kernel_radius
         jge kernel_done_scalar
 
         ;process left neighbors
 
-        xor rax,rax
+        ;zero color component registers
         xor rbx,rbx
         xor rcx,rcx
         xor rdx,rdx
 
+        sub pixel_idx_tail, kernel_index ; move to left neighbor
+        jns left_ok_scalar ; if >=0, no clamp needed
 
-        sub byte_idx_tail, kernel_index
-        jns left_ok_scalar
-            ;clamp to 0
-            mov al, byte ptr [rsi + 0 + 3]   ; A
+            ;clamp to 0 - load first pixel
             mov bl, byte ptr [rsi + 0 + 2]   ; R
             mov cl, byte ptr [rsi + 0 + 1]   ; G
             mov dl, byte ptr [rsi + 0 + 0]   ; B
             jmp left_scalar
+
+            ; no clamp needed - load left neighbor pixel
         left_ok_scalar:
-            mov al, byte ptr [rsi + byte_idx_tail*4 + 3]   ; A
-            mov bl, byte ptr [rsi + byte_idx_tail*4 + 2]   ; R
-            mov cl, byte ptr [rsi + byte_idx_tail*4 + 1]   ; G
-            mov dl, byte ptr [rsi + byte_idx_tail*4 + 0]   ; B
+            mov bl, byte ptr [rsi + pixel_idx_tail*4 + 2]   ; R
+            mov cl, byte ptr [rsi + pixel_idx_tail*4 + 1]   ; G
+            mov dl, byte ptr [rsi + pixel_idx_tail*4 + 0]   ; B
+
             left_scalar:
 
-        add byte_idx_tail, kernel_index
-        movzx eax, WORD PTR [p_kernel + kernel_index*2]  ; 16-bit kernel
+        add pixel_idx_tail, kernel_index; ; restore pixel_idx_tail
+
+        movzx eax, WORD PTR [p_kernel + kernel_index*2]  ; load kernel value
+         ; multiply R/G/B of left neighbor pixel
 
         imul ebx, eax
         imul ecx, eax
@@ -464,29 +479,35 @@ tail_pixel_loop:
         add B_accd, edx       ; B_acc
 
         ;process right neighbors
-         xor rax,rax
         xor rbx,rbx
         xor rcx,rcx
         xor rdx,rdx
 
-        add byte_idx_tail, kernel_index
-        cmp byte_idx_tail, remaining_pixels
-        jl right_ok_scalar
+        ; calculate right neighbor index
+        add pixel_idx_tail, kernel_index
+        cmp pixel_idx_tail, remaining_pixels
+        jl right_ok_scalar ; if < remaining_pixels, no clamp needed
+
             ;clamp to width-1
             mov rax, remaining_pixels
-            dec rax
+            dec rax ; rax = width-1
+            ; load last pixel
             mov bl, byte ptr [rsi + rax*4 + 2]   ; R
             mov cl, byte ptr [rsi + rax*4 + 1]   ; G
             mov dl, byte ptr [rsi + rax*4 + 0]   ; B
             jmp right_scalar
+
+            ; no clamp needed - load right neighbor pixel
             right_ok_scalar:
-            mov al, byte ptr [rsi + byte_idx_tail*4 + 3]   ; A
-            mov bl, byte ptr [rsi + byte_idx_tail*4 + 2]   ; R
-            mov cl, byte ptr [rsi + byte_idx_tail*4 + 1]   ; G
-            mov dl, byte ptr [rsi + byte_idx_tail*4 + 0]   ; B
+            mov bl, byte ptr [rsi + pixel_idx_tail*4 + 2]   ; R
+            mov cl, byte ptr [rsi + pixel_idx_tail*4 + 1]   ; G
+            mov dl, byte ptr [rsi + pixel_idx_tail*4 + 0]   ; B
             right_scalar:
-            sub byte_idx_tail, kernel_index
-            movzx eax, WORD PTR [p_kernel + kernel_index*2]  ; 16-bit kernel
+
+            sub pixel_idx_tail, kernel_index ; restore pixel_idx_tail
+
+            movzx eax, WORD PTR [p_kernel + kernel_index*2]  ; load kernel value again (checking clamp clobbered it)
+             ; multiply R/G/B of right neighbor pixel
             imul ebx, eax
             imul ecx, eax
             imul edx, eax
@@ -495,31 +516,30 @@ tail_pixel_loop:
             add G_accd, ecx       ; G_acc
             add B_accd, edx       ; B_acc
 
-
         inc kernel_index
         jmp kernel_loop_scalar
 
     kernel_done_scalar:
 
-    ; shift right to normalize Q14 (same as AVX2)
+    ; shift right to normalize (same as AVX2)
     ; arithmetic shift right
     sar R_accd, 14
     sar G_accd, 14
     sar B_accd, 14
 
-set_b0:
-      dest_pixel_ea equ r8
 
-    lea dest_pixel_ea, [rdi + byte_idx_tail*4]
+      
+    mov al, byte ptr [rsi + pixel_idx_tail*4 + 3]
+    lea dest_pixel_ea, [rdi + pixel_idx_tail*4]
     ; store pixel (keep alpha)
-    mov byte ptr [dest_pixel_ea + 3], 255 ;assuming this is alpha
+    mov byte ptr [dest_pixel_ea + 3], al
     mov byte ptr [dest_pixel_ea + 2], R_accb
     mov byte ptr [dest_pixel_ea + 1], G_accb
     mov byte ptr [dest_pixel_ea + 0], B_accb
 
     ; next pixel
-    inc byte_idx_tail
-    cmp byte_idx_tail, remaining_pixels
+    inc pixel_idx_tail
+    cmp pixel_idx_tail, remaining_pixels
     jne tail_pixel_loop
 
 ; Restore registers
@@ -531,35 +551,33 @@ pop r8
 pop rdx
 pop rcx    
 
+; Row finished - move to next row
 nextrow:
     inc start_row
     jmp rowloop
+
+; Blur finished
 done:
-    vzeroupper
+    vzeroupper ; clear upper parts of YMM registers to avoid AVX-SSE transition penalty
 
-     ; ---- Restore YMM registers ----
-   vmovdqu ymm6, ymmword ptr [rsp + 0]
-    vmovdqu ymm7, ymmword ptr [rsp + 32]
-    vmovdqu ymm8, ymmword ptr [rsp + 64]
-    vmovdqu ymm9, ymmword ptr [rsp + 96]
-    vmovdqu ymm10, ymmword ptr [rsp + 128]
-    vmovdqu ymm11, ymmword ptr [rsp + 160]
-    vmovdqu ymm12, ymmword ptr [rsp + 196]
-     add rsp, 64
-         add rsp, 64
+    ; ---- Restore XMM registers ----
+    movdqu xmm6, xmmword ptr [rsp + 0]
+    movdqu xmm7, xmmword ptr [rsp + 16]
+    movdqu xmm8, xmmword ptr [rsp + 32]
+    movdqu xmm9, xmmword ptr [rsp + 48]
+    movdqu xmm10, xmmword ptr [rsp + 64]
+    movdqu xmm11, xmmword ptr [rsp + 80]
+    movdqu xmm12, xmmword ptr [rsp + 96]
 
-    add rsp, 64
-    add rsp,32
-    ; ---- Restore GPRs ----
+    add rsp, 112 ; 7 * 16 bytes
+
+    ; ---- Restore callee-saved GPRs ----
     pop r15
     pop r14
     pop r13
     pop r12
-    pop rdi
-    pop rsi
     pop rbp
     pop rbx
-
 
     ret
 

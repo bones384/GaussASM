@@ -1,2 +1,4 @@
 LIBRARY asm
-EXPORTS gauss_horizontal
+EXPORTS
+	gauss_horizontal 
+	gauss_vertical
