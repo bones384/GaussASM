@@ -6,5 +6,6 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="asm.def" />
+    <None Include="gauss.inc" />
   </ItemGroup>
 </Project>

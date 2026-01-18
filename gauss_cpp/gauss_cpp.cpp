@@ -45,7 +45,7 @@ void gauss_horizontal(uint8_t* input, uint8_t* output, int width, int stride, ui
 	}
 }
 
-void gauss_vertical(uint8_t* input, uint8_t* output, int height, int width, int stride, uint16_t* kernel, int kernel_size, int start_row, int end_row)
+void gauss_vertical(uint8_t* input, uint8_t* output, int width, int stride, uint16_t* kernel, int kernel_size, int start_row, int end_row, int height)
 {
 	uint8_t depth = 4;
 

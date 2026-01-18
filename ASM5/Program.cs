@@ -11,6 +11,7 @@ namespace ASM5
         January 7th 2026 - Multithreading implemented.
         January 16th 2026 - Finally implemented horizontal blur in assembly
         January 17th 2026 - Horizontal blur made more readable, vertical blur in assembly started; Switching DLL at runtime implemented; Made blur DLL-agnostic. 
+        January 18th 2026 - Vertical blur in assembly completed; Tested and debugged assembly blurs. ASM output matches C++ output byte-for-byte.
     */
     static class Program
     {

@@ -2,6 +2,7 @@
 using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Imaging;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows.Forms;
@@ -11,6 +12,8 @@ namespace ASM5
     public partial class Form1 : Form
     {
         Bitmap InputBitmap;
+
+
         public Form1()
         {
             InitializeComponent();
@@ -20,7 +23,7 @@ namespace ASM5
 
         {
             unsafe delegate void GaussHorizontalDelegate(byte* input, byte* output, int width, int stride, ushort* kernel, int kernel_size, int start_row, int end_row);
-            unsafe delegate void GaussVerticalDelegate(byte* input, byte* output, int height, int width, int stride, ushort* kernel, int kernel_size, int start_row, int end_row);
+            unsafe delegate void GaussVerticalDelegate(byte* input, byte* output, int width, int stride, ushort* kernel, int kernel_size, int start_row, int end_row, int height);
 
             [DllImport("kernel32")]
             static extern IntPtr LoadLibrary(string lpFileName);
@@ -61,9 +64,9 @@ namespace ASM5
             {
                 _gauss_horizontal(input, output, width, stride, kernel, kernel_size, start_row, end_row);
             }
-            public static unsafe void gauss_vertical(byte* input, byte* output, int height, int width, int stride, ushort* kernel, int kernel_size, int start_row, int end_row)
+            public static unsafe void gauss_vertical(byte* input, byte* output, int width, int stride, ushort* kernel,int kernel_size, int start_row, int end_row, int height)
             {
-                _gauss_vertical(input, output, height, width, stride, kernel, kernel_size, start_row, end_row);
+                _gauss_vertical(input, output, width, stride, kernel, kernel_size, start_row, end_row, height);
             }
         }
         private void button1_Click(object sender, EventArgs e)
@@ -76,6 +79,7 @@ namespace ASM5
                 InputBitmap = new Bitmap(ofd.FileName);
                 pictureInput.Image = InputBitmap;
                 LabelFile.Text = ofd.FileName;
+
             }
 
         }
@@ -118,18 +122,7 @@ namespace ASM5
         {
             return (float)Math.Exp(-(x * x) / (2 * sigma * sigma));
         }
-        
-            // [DllImport(@"./asm.dll")]
-            //static extern unsafe void gauss_horizontal(byte* input, byte* output, int width, int stride, ushort* kernel, int kernel_size, int start_row, int end_row);
-
-            //[DllImport(@"./gauss_cpp.dll")]
-           // static extern unsafe void gauss_horizontalcpp(byte* input, byte* output, int width, int stride, ushort* kernel, int kernel_size, int start_row, int end_row);
-
-        //[DllImport(@"C:\Users\mkowa\source\repos\ASM5\x64\Debug\gauss_cpp.dll")]
-        //[DllImport(@"./gauss_cpp.dll")]
-
-        //static extern unsafe void gauss_vertical(byte* input, byte* output, int height, int width, int stride, ushort* kernel, int kernel_size, int start_row, int end_row);
-
+       
         private void buttonCpp_Click(object sender, EventArgs e)
         {
             NativeLoader.LoadLib(0);
@@ -143,10 +136,21 @@ namespace ASM5
             blur();
             sw.Stop();
             Console.WriteLine("CPP: Elapsed={0}", sw.Elapsed);
-
+            
+#if DEBUG
+            string exeDir = AppDomain.CurrentDomain.BaseDirectory;
+            string filename = $"{Path.GetFileName(LabelFile.Text)}_cpp_debug_sigma={InputSigma.Value}_radius={InputKernel.Value}{DateTime.Now:yyyyMMdd_HHmmss_fff}.png";
+            string path = Path.Combine(exeDir, filename);
+            pictureOutput.Image.Save(path, ImageFormat.Bmp);
+#else
+            string exeDir = AppDomain.CurrentDomain.BaseDirectory;
+            string filename = $"{Path.GetFileName(LabelFile.Text)}_cpp_release_sigma={InputSigma.Value}_radius={InputKernel.Value}{DateTime.Now:yyyyMMdd_HHmmss_fff}.png";
+            string path = Path.Combine(exeDir, filename);
+            pictureOutput.Image..Save(path, ImageFormat.Bmp);
+#endif
         }
 
-        
+
 
         private void buttonAsm_Click(object sender, EventArgs e)
         {
@@ -161,8 +165,19 @@ namespace ASM5
             blur();
             sw.Stop();
             Console.WriteLine("ASM: Elapsed={0}", sw.Elapsed);
+#if DEBUG
+            string exeDir = AppDomain.CurrentDomain.BaseDirectory;
+            string filename = $"{Path.GetFileName(LabelFile.Text)}_asm_debug_sigma={InputSigma.Value}_radius={InputKernel.Value}{DateTime.Now:yyyyMMdd_HHmmss_fff}.png";
+            string path = Path.Combine(exeDir, filename);
+            pictureOutput.Image.Save(path, ImageFormat.Bmp);
+#else
+            string exeDir = AppDomain.CurrentDomain.BaseDirectory;
+            string filename = $"{Path.GetFileName(LabelFile.Text)}_asm_release_sigma={InputSigma.Value}_radius={InputKernel.Value}{DateTime.Now:yyyyMMdd_HHmmss_fff}.png";
+            string path = Path.Combine(exeDir, filename);
+            pictureOutput.Image..Save(path, ImageFormat.Bmp);
+#endif
         }
-
+       
         void blur()
         {
             Cursor.Current = Cursors.WaitCursor;
@@ -170,9 +185,12 @@ namespace ASM5
             Rectangle rect = new Rectangle(0, 0, InputBitmap.Width, InputBitmap.Height);
 
 
-            BitmapData data = InputBitmap.LockBits(rect, ImageLockMode.ReadWrite, PixelFormat.Format32bppArgb);
+            BitmapData data = InputBitmap.LockBits(rect, ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
             byte[] image = new byte[data.Height * data.Stride];
             Marshal.Copy(data.Scan0, image, 0, image.Length);
+            int stride = data.Stride;
+            int height = data.Height;
+            int width = data.Width;
             InputBitmap.UnlockBits(data);
             progressBar.Value = 0;
 
@@ -183,7 +201,7 @@ namespace ASM5
             Thread[] threads = new Thread[thread_count];
             progressBar.Maximum = 2 * thread_count + 1;
 
-            byte[] temp = new byte[InputBitmap.Height * data.Stride];
+            byte[] temp = new byte[height * stride];
 
 
             unsafe
@@ -202,10 +220,12 @@ namespace ASM5
                         for (int i = 0; i < thread_count; i++)
                         {
                             int start_row = i * slice_height;
-                            int end_row = (i == thread_count - 1) ? InputBitmap.Height : start_row + slice_height;
+                          
+                            int end_row = (i == thread_count - 1) ? height : start_row + slice_height;
                             threads[i] = new Thread(() =>
                             {
-                                NativeLoader.gauss_horizontal(p_image, p_temp, InputBitmap.Width, data.Stride, p_kernel, kernel_size, start_row, end_row);
+                                 NativeLoader.gauss_horizontal(p_image, p_temp, width, stride, p_kernel, kernel_size, start_row, end_row);
+                                return;
                             });
                             threads[i].Start();
 
@@ -229,7 +249,7 @@ namespace ASM5
                             int end_row = (i == thread_count - 1) ? InputBitmap.Height : start_row + slice_height;
                             threads[i] = new Thread(() =>
                             {
-                                NativeLoader.gauss_vertical(p_temp, p_image, InputBitmap.Height, InputBitmap.Width, data.Stride, p_kernel, kernel_size, start_row, end_row);
+                                NativeLoader.gauss_vertical(p_temp, p_image , width, stride, p_kernel, kernel_size, start_row, end_row, height);
                             });
                             threads[i].Start();
                         }
@@ -246,10 +266,10 @@ namespace ASM5
                 }
             }
 
-            Bitmap output = new Bitmap(InputBitmap.Width, InputBitmap.Height, PixelFormat.Format32bppArgb);
+            Bitmap output = new Bitmap(width, height, PixelFormat.Format32bppArgb);
 
             data = output.LockBits(rect, ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
-            Marshal.Copy(image, 0, data.Scan0, image.Length); 
+            Marshal.Copy(image, 0, data.Scan0, image.Length); //! CHANGE BACK TO IMAGE!
             output.UnlockBits(data);
             if (pictureOutput.Image != null)
             {
@@ -259,6 +279,7 @@ namespace ASM5
             }
             pictureOutput.Image = output;
             Cursor.Current = Cursors.Arrow;
+
         }
     }
 }
