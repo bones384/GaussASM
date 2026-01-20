@@ -17,6 +17,7 @@ namespace ASM5
         public Form1()
         {
             InitializeComponent();
+            listView1_Resize(listView1, EventArgs.Empty);
         }
 
         static class NativeLoader
@@ -123,6 +124,20 @@ namespace ASM5
             return (float)Math.Exp(-(x * x) / (2 * sigma * sigma));
         }
        
+        private void add_log(string method, double elapsed)
+        {
+            listView1.Items.Add(new ListViewItem(
+          new[] { $"{Path.GetFileName(LabelFile.Text)}",
+                    $"{method}",
+                    $"{InputSigma.Value}",
+                $"{InputKernel.Value}",
+                $"{elapsed}ms" ,
+                $"{InputThreads.Value}" })
+          );
+            if (listView1.Items.Count > 8)
+                listView1.Items.RemoveAt(0);
+            listView1.Refresh();
+        }
         private void buttonCpp_Click(object sender, EventArgs e)
         {
             NativeLoader.LoadLib(0);
@@ -135,8 +150,9 @@ namespace ASM5
             sw.Start();
             blur();
             sw.Stop();
-            Console.WriteLine("CPP: Elapsed={0}", sw.Elapsed);
-            
+           add_log("CPP", sw.Elapsed.TotalMilliseconds);
+
+
 #if DEBUG
             string exeDir = AppDomain.CurrentDomain.BaseDirectory;
             string filename = $"{Path.GetFileName(LabelFile.Text)}_cpp_debug_sigma={InputSigma.Value}_radius={InputKernel.Value}{DateTime.Now:yyyyMMdd_HHmmss_fff}.png";
@@ -164,7 +180,7 @@ namespace ASM5
             sw.Start();
             blur();
             sw.Stop();
-            Console.WriteLine("ASM: Elapsed={0}", sw.Elapsed);
+            add_log("ASM", sw.Elapsed.TotalMilliseconds);
 #if DEBUG
             string exeDir = AppDomain.CurrentDomain.BaseDirectory;
             string filename = $"{Path.GetFileName(LabelFile.Text)}_asm_debug_sigma={InputSigma.Value}_radius={InputKernel.Value}{DateTime.Now:yyyyMMdd_HHmmss_fff}.png";
@@ -280,6 +296,24 @@ namespace ASM5
             pictureOutput.Image = output;
             Cursor.Current = Cursors.Arrow;
 
+        }
+
+        private void listView1_Resize(object sender, EventArgs e)
+        {
+            int totalWidth = listView1.ClientSize.Width;
+
+            listView1.Columns[0].Width = (int)(totalWidth * 0.3);
+            listView1.Columns[1].Width = (int)(totalWidth * 0.1);
+            listView1.Columns[2].Width = (int)(totalWidth * 0.1);
+            listView1.Columns[3].Width = (int)(totalWidth * 0.1);
+            listView1.Columns[4].Width = (int)(totalWidth * 0.3);
+            listView1.Columns[5].Width = (int)(totalWidth * 0.1);
+        }
+
+        private void listView1_ColumnWidthChanging(object sender, ColumnWidthChangingEventArgs e)
+        {
+            e.Cancel = true;
+            e.NewWidth = listView1.Columns[e.ColumnIndex].Width;
         }
     }
 }
