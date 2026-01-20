@@ -1,3 +1,11 @@
+; -----------------------------------------
+; File: gauss.inc
+; Author: Mateusz Kowalec
+; Created: January 17, 2026
+; Modified: January 18, 2026 
+; Description: Holds constants and macros used by Gaussian blur assembly procedures.
+;; -----------------------------------------
+    
     ; Parameters
     p_input	 equ rcx ; *data
     p_output	 equ rdx ; *temp
@@ -73,12 +81,14 @@
     dest_pixel_ea equ r15 ; effective address for storing pixel in tail processing
 
 .data
+; Alpha mask for blending alpha channel from original pixels
 alpha_mask_data BYTE \
   255,255,255,0,  255,255,255,0, \
   255,255,255,0,  255,255,255,0, \
   255,255,255,0,  255,255,255,0, \
   255,255,255,0,  255,255,255,0     
 
+; Every dword is its index: 0,1,2,...15, used for shuffling last valid pixels (in a ymm register) when neighboring pixels are out of bounds
 idx LABEL DWORD
 dd 0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
 
@@ -86,6 +96,7 @@ dd 0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
     ; -----------------------------------------
     ; Macro to process 8 pixels - expand, multiply by kernel, accumulate
     ; src_reg - source register containing 8 pixels (32 bytes)
+    ; clobbers: ymm 1-5, ymm 8-11, src_reg
     ; INTERNAL USE ONLY
     ; -----------------------------------------
 

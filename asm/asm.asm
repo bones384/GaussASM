@@ -1,28 +1,36 @@
+
+; -----------------------------------------
+; File: asm.asm
+; Author: Mateusz Kowalec
+; Created: January 2, 2026
+; Modified: January 18, 2026 
+; Description: Holds horizontal Gaussian blur function.
+;; -----------------------------------------
+    
 INCLUDE gauss.inc
 
 .code
-
-
-
    
 ; -----------------------------------------
 ; Function: gauss_horizontal
-; Author: ----
+; Author: Mateusz Kowalec
 ; Created: January 9, 2026
-; Modified: January 17, 2026 
+; Modified: January 18, 2026 
 ; Description: Applies a horizontal Gaussian blur to image data.
 ; Parameters:
-;   RCX - Pointer to the image data 
-;   RDX - Pointer to temporary buffer
-;   R8 - Width of the image in pixels
-;   R9 - Stride (number of bytes per row)
+;   RCX - Pointer to the input data (32bpp ARGB format)
+;   RDX - Pointer to the output data 
+;   R8 - Width of the image in pixels, dword
+;   R9 - Stride (number of bytes per row), dword
 ;   Additional parameters passed on stack:
-;  Kernel - Pointer to the Gaussian kernel
-;   Kernel Size - Radius of the Gaussian kernel 
-;   Start Row  - Starting row index 
-;  End Row  - Ending row index 
+;  Kernel - Pointer to the Gaussian kernel, word*
+;   Kernel Size - Radius of the Gaussian kernel, dword
+;   Start Row  - Starting row index , dword
+;  End Row  - Ending row index , dword
 ; Clobbers: rax, rcx, rdx, r8, r9  
 ; Saves and restores: rbp, rbx, r12-r15, xmm6-xmm12
+;
+;  output[row,col] = sum_{j=-kernel_size}^{kernel_size} kernel[|j|] * input[row,min(max(col + j, width-1), 0], for row in [start_row, end_row)
 ;; -----------------------------------------
 gauss_horizontal proc
 
@@ -41,7 +49,7 @@ gauss_horizontal proc
     mov r12d, DWORD PTR [rsp+56+48] ; start_row
     mov r13d, DWORD PTR [rsp+64+48] ; end_row
 
-    sub rsp, 112		 ; space for XMM6 to XMM12 (7 × 16 bytes)
+    sub rsp, 96		 ; space for XMM6 to XMM12 (6 × 16 bytes)
 
 
     ; ---- Save non-volatile XMM registers ----
@@ -51,7 +59,6 @@ gauss_horizontal proc
     movdqu xmmword ptr [rsp + 48], xmm9
     movdqu xmmword ptr [rsp + 64], xmm10
     movdqu xmmword ptr [rsp + 80], xmm11
-    movdqu xmmword ptr [rsp + 96], xmm12
 
     ; Initialize zero register
     vpxor zero, zero, zero ; ymm7 = [0, 0, 0, ... 0]
@@ -256,6 +263,9 @@ kerneldone:
     vmovdqa ymm_alpha_mask, YMMWORD PTR [alpha_mask_data] ;  ymm5 = [0,255,255,255... , 0,255,255,255] mask to blend alpha from original pixels
 
     ; Select alpha from orig_bytes, RGB from temp_bytes
+    ; vpblendvb dest, src1, src2, mask
+    ; For each byte in mask, if high bit set, select byte from src2, else from src1
+    ; mask has 0 for alpha bytes, 255 for R,G,B bytes - select alpha from orig_bytes, R,G,B from temp_bytes
     vpblendvb temp_bytes,orig_bytes, temp_bytes, ymm_alpha_mask
     ; Store resulting 8 pixels
     vmovdqu YMMWORD PTR [rdi + pixel_idx*4], temp_bytes
@@ -450,9 +460,8 @@ done:
     movdqu xmm9, xmmword ptr [rsp + 48]
     movdqu xmm10, xmmword ptr [rsp + 64]
     movdqu xmm11, xmmword ptr [rsp + 80]
-    movdqu xmm12, xmmword ptr [rsp + 96]
 
-    add rsp, 112 ; 7 * 16 bytes
+    add rsp, 96 ; 7 * 16 bytes
 
     ; ---- Restore callee-saved GPRs ----
     pop r15

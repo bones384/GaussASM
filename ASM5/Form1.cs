@@ -1,4 +1,12 @@
-﻿using System;
+﻿/* -----------------------------------------
+; File: Form1.cs
+; Author: Mateusz Kowalec
+; Created: January 2, 2026
+; Modified: January 20, 2026
+; Description: Main code for C# side of the ASM5 project.
+; 
+ -----------------------------------------*/
+using System;
 using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Imaging;
@@ -11,6 +19,7 @@ namespace ASM5
 {
     public partial class Form1 : Form
     {
+        // Holds the image submitted by the user with the Open File Dialog
         Bitmap InputBitmap;
 
 
@@ -20,6 +29,7 @@ namespace ASM5
             listView1_Resize(listView1, EventArgs.Empty);
         }
 
+        // For runtime DLL switching
         static class NativeLoader
 
         {
@@ -36,6 +46,7 @@ namespace ASM5
             static GaussHorizontalDelegate _gauss_horizontal;
             static GaussVerticalDelegate _gauss_vertical;
 
+            // Load either the C++ or ASM DLL based on user choice (lib = 0 for C++, 1 for ASM)
             public static void LoadLib(int lib)
             {
                 string path;
@@ -61,6 +72,7 @@ namespace ASM5
                 _gauss_vertical = Marshal.GetDelegateForFunctionPointer<GaussVerticalDelegate>(fn);
             }
 
+            // Wrappers for the imported functions
             public static unsafe void gauss_horizontal(byte* input, byte* output, int width, int stride, ushort* kernel, int kernel_size, int start_row, int end_row)
             {
                 _gauss_horizontal(input, output, width, stride, kernel, kernel_size, start_row, end_row);
@@ -70,6 +82,8 @@ namespace ASM5
                 _gauss_vertical(input, output, width, stride, kernel, kernel_size, start_row, end_row, height);
             }
         }
+
+        // Open File Dialog button, loads image into InputBitmap
         private void button1_Click(object sender, EventArgs e)
         {
             OpenFileDialog ofd = new OpenFileDialog();
@@ -85,10 +99,10 @@ namespace ASM5
 
         }
 
+        // Generates a fixed-point Gaussian kernel based on sigma and kernel radius.
         ushort[] generate_gaussian_kernel(float sigma, int kernel_radius)
         {
             ushort[] kernel_result = new ushort[kernel_radius];
-            int[] kernel = new int[kernel_radius];
             float[] temp_kernel = new float[kernel_radius];
             float sum = 0;
             temp_kernel[0] = gaussian_distribution(0, sigma);
@@ -100,8 +114,8 @@ namespace ASM5
                 sum += 2 * v;
             }
             ushort fixedsum = 0;
-            temp_kernel[0] /= sum;
-            kernel_result[0] = (ushort)(temp_kernel[0] * (1 << 14));
+            temp_kernel[0] /= sum; // range is 0..1
+            kernel_result[0] = (ushort)(temp_kernel[0] * (1 << 14) +0.5f); // range is 0..16384
             fixedsum += (ushort)kernel_result[0];
             for (int i = 1; i < kernel_radius; i++)
             {
@@ -112,13 +126,8 @@ namespace ASM5
             kernel_result[0] += (ushort)((1 << 14) - fixedsum);
             return kernel_result;
         }
-        private void InputKernel_ValueChanged(object sender, EventArgs e)
-        {
-            var nud = (NumericUpDown)sender;
 
-            int value = (int)nud.Value;
-
-        }
+        // Gaussian distribution function, returns float value, lacks normalization factor.
         float gaussian_distribution(int x, float sigma)
         {
             return (float)Math.Exp(-(x * x) / (2 * sigma * sigma));
@@ -162,7 +171,7 @@ namespace ASM5
             string exeDir = AppDomain.CurrentDomain.BaseDirectory;
             string filename = $"{Path.GetFileName(LabelFile.Text)}_cpp_release_sigma={InputSigma.Value}_radius={InputKernel.Value}{DateTime.Now:yyyyMMdd_HHmmss_fff}.png";
             string path = Path.Combine(exeDir, filename);
-            pictureOutput.Image..Save(path, ImageFormat.Bmp);
+            pictureOutput.Image.Save(path, ImageFormat.Bmp);
 #endif
         }
 
@@ -190,7 +199,7 @@ namespace ASM5
             string exeDir = AppDomain.CurrentDomain.BaseDirectory;
             string filename = $"{Path.GetFileName(LabelFile.Text)}_asm_release_sigma={InputSigma.Value}_radius={InputKernel.Value}{DateTime.Now:yyyyMMdd_HHmmss_fff}.png";
             string path = Path.Combine(exeDir, filename);
-            pictureOutput.Image..Save(path, ImageFormat.Bmp);
+            pictureOutput.Image.Save(path, ImageFormat.Bmp);
 #endif
         }
        

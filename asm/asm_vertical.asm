@@ -1,5 +1,34 @@
 INCLUDE gauss.inc
+; -----------------------------------------
+; File: asm_vertical.asm
+; Author: Mateusz Kowalec
+; Created: January 17, 2026
+; Modified: January 18, 2026 
+; Description: Holds vertical Gaussian blur function.
+;; -----------------------------------------
 .code
+; -----------------------------------------
+; Function: gauss_vertical
+; Author: Mateusz Kowalec
+; Created: January 17, 2026
+; Modified: January 18, 2026 
+; Description: Applies a vertical Gaussian blur to image data.
+; Parameters:
+;   RCX - Pointer to the input image data (32bpp ARGB format)
+;   RDX - Pointer to output image data 
+;   R8 - Width of the image in pixels, dword
+;   R9 - Stride (number of bytes per row), dword
+;   Additional parameters passed on stack:
+;  Kernel - Pointer to the Gaussian kernel, word ptr
+;   Kernel Size - Radius of the Gaussian kernel , dword
+;   Start Row  - Starting row index , dword
+;  End Row  - Ending row index , dword
+;  Height  - Total height of the image in pixels, dword <- difference from horizontal
+; Clobbers: rax, rcx, rdx, r8, r9  
+; Saves and restores: rbp, rbx, r12-r15, xmm6-xmm12
+;
+; output[row,col] = sum_{j=-kernel_size}^{kernel_size} kernel[|j|] * input[min(max(row + j, height-1), 0),col], for row in [start_row, end_row)
+;; -----------------------------------------
 gauss_vertical proc
 
   ; ---- Save callee-saved GPRs ----

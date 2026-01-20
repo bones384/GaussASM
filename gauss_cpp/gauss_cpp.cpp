@@ -1,3 +1,12 @@
+/*
+* Author: Mateusz Kowalec
+* Created: January 2, 2026
+* Modified: January 18, 2026
+* File: gauss_cpp.cpp
+* Functions: gauss_horizontal, gauss_vertical
+* Description: Implements Gaussian blur in C++ for horizontal and vertical passes.
+*/
+
 #include "pch.h"
 #include "gauss_cpp.h"
 #include "math.h" 
@@ -6,7 +15,21 @@
 #include <cassert>
 #include <cstdint>
 
-
+/*
+* Applies horizontal Gaussian blur to the input image.
+* 
+* Parameters:
+* - input: Pointer to the input image data (Format32bppArgb). Pointer to an array of bytes representing the input image in 32bpp ARGB format.
+* - output: Pointer to the output image data (Format32bppArgb). Pointer to an array of bytes where the blurred image will be stored in 32bpp ARGB format.
+* - width: Width of the image in pixels. Int.
+* - stride: Number of bytes in a row of the image. Int.
+* - kernel: Pointer to the Gaussian kernel (1D, normalized to 14 bits). Pointer to an array of 16-bit unsigned integers representing the Gaussian kernel values.
+* - kernel_size: Size of the Gaussian kernel (radius). Int.
+* - start_row: Starting row index for processing. Int.
+* - end_row: Ending row index for processing. Int.
+* 
+*  output[row,col] = sum_{j=-kernel_size}^{kernel_size} kernel[|j|] * input[row,min(max(col + j, width-1), 0], for row in [start_row, end_row)
+*/
 void gauss_horizontal(uint8_t* input, uint8_t* output, int width, int stride, uint16_t* kernel, int kernel_size, int start_row, int end_row)
 {
 	uint8_t depth = 4;
@@ -39,12 +62,28 @@ void gauss_horizontal(uint8_t* input, uint8_t* output, int width, int stride, ui
 					int right_idx = (right_j >= rowBytes) ? (row_base + rowBytes - 4 + k) : (row_base + right_j + k);
 					sum += kernel[l] * input[right_idx];
 				}
+				// Store result, shifted back to byte
 				output[pixel_base + k] = sum >> 14;
 			}
 		}
 	}
 }
-
+/*
+* Applies vertical Gaussian blur to the input image.
+* 
+* Parameters:
+* - input: Pointer to the input image data (Format32bppArgb). Pointer to an array of bytes representing the input image in 32bpp ARGB format.
+* - output: Pointer to the output image data (Format32bppArgb). Pointer to an array of bytes where the blurred image will be stored in 32bpp ARGB format.
+* - width: Width of the image in pixels. Int.
+* - stride: Number of bytes in a row of the image. Int.
+* - kernel: Pointer to the Gaussian kernel (1D, normalized to 14 bits). Pointer to an array of 16-bit unsigned integers representing the Gaussian kernel values.
+* - kernel_size: Size of the Gaussian kernel (radius). Int.
+* - start_row: Starting row index for processing. Int.
+* - end_row: Ending row index for processing. Int.
+* - height: Height of the image in pixels. Int.
+* 
+*  output[row,col] = sum_{j=-kernel_size}^{kernel_size} kernel[|j|] * input[min(max(row + j, height-1), 0),col], for row in [start_row, end_row)
+*/
 void gauss_vertical(uint8_t* input, uint8_t* output, int width, int stride, uint16_t* kernel, int kernel_size, int start_row, int end_row, int height)
 {
 	uint8_t depth = 4;

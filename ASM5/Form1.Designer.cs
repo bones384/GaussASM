@@ -35,6 +35,12 @@
             this.pictureInput = new System.Windows.Forms.PictureBox();
             this.groupBox5 = new System.Windows.Forms.GroupBox();
             this.listView1 = new System.Windows.Forms.ListView();
+            this.File = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
+            this.Method = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
+            this.Sigma = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
+            this.Radius = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
+            this.Elapsed = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
+            this.Thread = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
             this.groupBox4 = new System.Windows.Forms.GroupBox();
             this.tableLayoutPanel2 = new System.Windows.Forms.TableLayoutPanel();
             this.button1 = new System.Windows.Forms.Button();
@@ -53,12 +59,6 @@
             this.InputThreads = new System.Windows.Forms.NumericUpDown();
             this.progressBar = new System.Windows.Forms.ProgressBar();
             this.groupBox1 = new System.Windows.Forms.GroupBox();
-            this.File = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
-            this.Method = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
-            this.Sigma = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
-            this.Radius = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
-            this.Elapsed = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
-            this.Thread = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
             this.tableLayoutPanel1.SuspendLayout();
             this.groupBox3.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.pictureOutput)).BeginInit();
@@ -166,6 +166,36 @@
             this.listView1.View = System.Windows.Forms.View.Details;
             this.listView1.ColumnWidthChanging += new System.Windows.Forms.ColumnWidthChangingEventHandler(this.listView1_ColumnWidthChanging);
             this.listView1.Resize += new System.EventHandler(this.listView1_Resize);
+            // 
+            // File
+            // 
+            this.File.Text = "File";
+            this.File.Width = 113;
+            // 
+            // Method
+            // 
+            this.Method.Text = "Method";
+            this.Method.Width = 56;
+            // 
+            // Sigma
+            // 
+            this.Sigma.Text = "Sigma";
+            this.Sigma.Width = 44;
+            // 
+            // Radius
+            // 
+            this.Radius.Text = "Radius";
+            this.Radius.Width = 65;
+            // 
+            // Elapsed
+            // 
+            this.Elapsed.Text = "Elapsed";
+            this.Elapsed.Width = 59;
+            // 
+            // Thread
+            // 
+            this.Thread.Text = "Threads";
+            this.Thread.Width = 44;
             // 
             // groupBox4
             // 
@@ -357,7 +387,6 @@
             0,
             0,
             0});
-            this.InputKernel.ValueChanged += new System.EventHandler(this.InputKernel_ValueChanged);
             // 
             // InputSigma
             // 
@@ -415,36 +444,6 @@
             this.groupBox1.Size = new System.Drawing.Size(806, 450);
             this.groupBox1.TabIndex = 3;
             this.groupBox1.TabStop = false;
-            // 
-            // File
-            // 
-            this.File.Text = "File";
-            this.File.Width = 113;
-            // 
-            // Method
-            // 
-            this.Method.Text = "Method";
-            this.Method.Width = 56;
-            // 
-            // Sigma
-            // 
-            this.Sigma.Text = "Sigma";
-            this.Sigma.Width = 44;
-            // 
-            // Radius
-            // 
-            this.Radius.Text = "Radius";
-            this.Radius.Width = 65;
-            // 
-            // Elapsed
-            // 
-            this.Elapsed.Text = "Elapsed";
-            this.Elapsed.Width = 59;
-            // 
-            // Thread
-            // 
-            this.Thread.Text = "Threads";
-            this.Thread.Width = 44;
             // 
             // Form1
             // 
