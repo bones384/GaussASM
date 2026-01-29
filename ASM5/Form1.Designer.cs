@@ -51,7 +51,6 @@
             this.label5 = new System.Windows.Forms.Label();
             this.buttonCpp = new System.Windows.Forms.Button();
             this.buttonAsm = new System.Windows.Forms.Button();
-            this.buttonBulk = new System.Windows.Forms.Button();
             this.label6 = new System.Windows.Forms.Label();
             this.label7 = new System.Windows.Forms.Label();
             this.InputKernel = new System.Windows.Forms.NumericUpDown();
@@ -222,7 +221,6 @@
             this.tableLayoutPanel2.Controls.Add(this.label5, 0, 3);
             this.tableLayoutPanel2.Controls.Add(this.buttonCpp, 2, 5);
             this.tableLayoutPanel2.Controls.Add(this.buttonAsm, 0, 5);
-            this.tableLayoutPanel2.Controls.Add(this.buttonBulk, 1, 5);
             this.tableLayoutPanel2.Controls.Add(this.label6, 2, 1);
             this.tableLayoutPanel2.Controls.Add(this.label7, 2, 2);
             this.tableLayoutPanel2.Controls.Add(this.InputKernel, 1, 1);
@@ -331,17 +329,6 @@
             this.buttonAsm.Text = "Blur (ASM)";
             this.buttonAsm.UseVisualStyleBackColor = true;
             this.buttonAsm.Click += new System.EventHandler(this.buttonAsm_Click);
-            // 
-            // buttonBulk
-            // 
-            this.buttonBulk.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.buttonBulk.Location = new System.Drawing.Point(134, 158);
-            this.buttonBulk.Margin = new System.Windows.Forms.Padding(5, 3, 5, 3);
-            this.buttonBulk.Name = "buttonBulk";
-            this.buttonBulk.Size = new System.Drawing.Size(119, 29);
-            this.buttonBulk.TabIndex = 11;
-            this.buttonBulk.Text = "Blur (Bulk test)";
-            this.buttonBulk.UseVisualStyleBackColor = true;
             // 
             // label6
             // 
@@ -490,7 +477,6 @@
         private System.Windows.Forms.Label label5;
         private System.Windows.Forms.Button buttonCpp;
         private System.Windows.Forms.Button buttonAsm;
-        private System.Windows.Forms.Button buttonBulk;
         private System.Windows.Forms.Label label6;
         private System.Windows.Forms.Label label7;
         private System.Windows.Forms.NumericUpDown InputKernel;
