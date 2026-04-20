@@ -5,7 +5,7 @@ This project is a Windows Forms application for applying a configurable two-pass
 * A C++ implementation (CPU-based)
 * An x64 assembly implementation using AVX SIMD instructions.
   
-The application dynamically loads the selected library and benchmarks execution time across runs, displaying results in a table.
+The application dynamically loads the selected library and benchmarks execution time across runs, displaying results in a table. Given the same inputs, both implementations result in exactly the same image.
 
 <img width="1010" height="602" alt="image" src="https://github.com/user-attachments/assets/1d9bb284-97a2-43a3-ab7f-1ae353cb33b8" />
 
